@@ -9,6 +9,10 @@
 <body>
   <nav>
     <a href="{{ url_for('index') }}" class="brand">AI Usage</a>
+    <div class="nav-links">
+      <a href="{{ url_for('sync') }}">Sync</a>
+      <a href="{{ url_for('settings') }}">Settings</a>
+    </div>
     <a href="{{ url_for('add') }}" class="btn-add">+ Log Usage</a>
   </nav>
   <main>

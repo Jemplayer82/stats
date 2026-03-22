@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Sync — AI Usage{% endblock %}
+{% block content %}
+
+<h1>Sync Usage Data</h1>
+
+<section class="sync-card">
+  <div class="sync-header">
+    <div>
+      <div class="sync-title">Claude / Anthropic</div>
+      <div class="sync-sub">Pulls daily token usage from the Anthropic usage report API.</div>
+    </div>
+    <div class="sync-controls">
+      <select id="anthropic-days">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+      <button class="btn-submit" id="anthropic-sync-btn" onclick="syncAnthropic()">Sync Now</button>
+    </div>
+  </div>
+  <div id="anthropic-status" class="sync-status"></div>
+</section>
+
+<section class="sync-card" style="margin-top:1.25rem">
+  <div class="sync-header">
+    <div>
+      <div class="sync-title">Ollama</div>
+      <div class="sync-sub">Ollama is tracked live via the proxy — no manual sync needed.</div>
+    </div>
+    <a href="{{ url_for('settings') }}" class="btn-cancel" style="align-self:center">Configure Proxy →</a>
+  </div>
+</section>
+
+<script>
+async function syncAnthropic() {
+  const btn   = document.getElementById('anthropic-sync-btn');
+  const days  = document.getElementById('anthropic-days').value;
+  const status = document.getElementById('anthropic-status');
+
+  btn.disabled = true;
+  btn.textContent = 'Syncing…';
+  status.className = 'sync-status';
+  status.textContent = '';
+
+  try {
+    const res  = await fetch('/sync/anthropic', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ days: parseInt(days) }),
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      status.className = 'sync-status ok';
+      status.textContent = `Done — ${data.added} new entries imported, ${data.skipped} already up to date.`;
+    } else {
+      status.className = 'sync-status err';
+      status.textContent = data.error || 'Unknown error';
+    }
+  } catch (e) {
+    status.className = 'sync-status err';
+    status.textContent = e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Sync Now';
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Settings — AI Usage{% endblock %}
+{% block content %}
+
+<h1>Settings</h1>
+
+<form method="POST" class="usage-form">
+  <label>Anthropic Admin API Key
+    <input type="password" name="anthropic_admin_key"
+           placeholder="{% if has_key %}{{ masked_key }} — paste new key to replace{% else %}sk-ant-admin…{% endif %}" />
+    <span class="hint">Requires an Admin key (sk-ant-admin…) from the Anthropic Console. Leave blank to keep existing.</span>
+  </label>
+
+  <label>Ollama URL
+    <input type="text" name="ollama_url" value="{{ ollama_url }}" placeholder="http://localhost:11434" />
+    <span class="hint">Where your Ollama instance is running.</span>
+  </label>
+
+  <div class="form-actions">
+    <a href="{{ url_for('index') }}" class="btn-cancel">Cancel</a>
+    <button type="submit" class="btn-submit">Save</button>
+  </div>
+</form>
+
+<section class="info-box" style="margin-top:2rem">
+  <h2>Ollama Proxy</h2>
+  <p>To auto-capture Ollama token usage, point your apps at the proxy instead of Ollama directly:</p>
+  <pre class="code-block">http://localhost:5000/proxy/ollama</pre>
+  <p style="margin-top:.75rem">Example — using the CLI:</p>
+  <pre class="code-block">OLLAMA_HOST=http://localhost:5000/proxy/ollama ollama run llama3</pre>
+  <p style="margin-top:.75rem">Example — in code:</p>
+  <pre class="code-block">openai.base_url = "http://localhost:5000/proxy/ollama/v1"</pre>
+</section>
+
+{% endblock %}
