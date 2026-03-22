@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — AI Usage{% endblock %}
+{% block content %}
+
+<h1>Dashboard</h1>
+
+<section class="stats-grid">
+  <div class="stat-card total">
+    <div class="stat-label">Total Requests</div>
+    <div class="stat-value">{{ total.count }}</div>
+    <div class="stat-sub">{{ "{:,}".format(total.input_tokens) }} in / {{ "{:,}".format(total.output_tokens) }} out tokens</div>
+    <div class="stat-cost">${{ "%.4f"|format(total.cost_usd) }}</div>
+  </div>
+  {% for platform, s in stats.items() %}
+  <div class="stat-card">
+    <div class="stat-label">{{ platform }}</div>
+    <div class="stat-value">{{ s.count }}</div>
+    <div class="stat-sub">{{ "{:,}".format(s.input_tokens) }} in / {{ "{:,}".format(s.output_tokens) }} out tokens</div>
+    <div class="stat-cost">${{ "%.4f"|format(s.cost_usd) }}</div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="table-section">
+  <h2>History</h2>
+  {% if entries %}
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Platform</th>
+        <th>Model</th>
+        <th>Input Tokens</th>
+        <th>Output Tokens</th>
+        <th>Cost (USD)</th>
+        <th>Note</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td class="mono">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td><span class="badge badge-{{ e.platform | lower | replace(' ', '-') | replace('/', '') }}">{{ e.platform }}</span></td>
+        <td class="mono">{{ e.model }}</td>
+        <td class="num">{{ "{:,}".format(e.input_tokens) }}</td>
+        <td class="num">{{ "{:,}".format(e.output_tokens) }}</td>
+        <td class="num">${{ "%.6f"|format(e.cost_usd) }}</td>
+        <td class="note">{{ e.note }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('delete', entry_id=e.id) }}" onsubmit="return confirm('Delete this entry?')">
+            <button type="submit" class="btn-delete">✕</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No entries yet. <a href="{{ url_for('add') }}">Log your first usage.</a></p>
+  {% endif %}
+</section>
+
+{% endblock %}

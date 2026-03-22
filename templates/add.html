@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Log Usage — AI Usage{% endblock %}
+{% block content %}
+
+<h1>Log Usage</h1>
+
+<form method="POST" class="usage-form">
+  <label>Platform
+    <select name="platform" id="platform" required onchange="loadModels()">
+      {% for p in platforms %}
+      <option value="{{ p }}">{{ p }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>Model
+    <select name="model" id="model" required onchange="checkOther()">
+      {% for m in models[platforms[0]] %}
+      <option value="{{ m }}">{{ m }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label id="custom-model-wrap" style="display:none">Custom model name
+    <input type="text" name="model_custom" id="model_custom" placeholder="e.g. llama3.2:3b" />
+  </label>
+
+  <div class="row">
+    <label>Input tokens
+      <input type="number" name="input_tokens" min="0" value="0" required />
+    </label>
+    <label>Output tokens
+      <input type="number" name="output_tokens" min="0" value="0" required />
+    </label>
+  </div>
+
+  <label>Cost override (USD) <span class="hint">— leave blank to auto-calculate</span>
+    <input type="number" name="cost_usd" step="0.000001" min="0" placeholder="auto" />
+  </label>
+
+  <label>Note (optional)
+    <textarea name="note" rows="3" placeholder="What were you working on?"></textarea>
+  </label>
+
+  <div class="form-actions">
+    <a href="{{ url_for('index') }}" class="btn-cancel">Cancel</a>
+    <button type="submit" class="btn-submit">Save</button>
+  </div>
+</form>
+
+<script>
+const MODELS = {{ models | tojson }};
+
+function loadModels() {
+  const platform = document.getElementById('platform').value;
+  const sel = document.getElementById('model');
+  sel.innerHTML = '';
+  (MODELS[platform] || []).forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  checkOther();
+}
+
+function checkOther() {
+  const isOther = document.getElementById('model').value === 'Other';
+  document.getElementById('custom-model-wrap').style.display = isOther ? '' : 'none';
+  document.getElementById('model_custom').required = isOther;
+}
+</script>
+
+{% endblock %}
