@@ -33,6 +33,15 @@
     <div id="live-usage-bars"></div>
   </div>
 
+  <!-- Ollama.com live usage -->
+  <div class="chart-card" id="ollama-usage-card">
+    <div class="chart-header">
+      <span class="chart-title">Ollama.com Usage</span>
+      <span class="chart-sub" id="ollama-usage-sub">loading…</span>
+    </div>
+    <div id="ollama-usage-bars"></div>
+  </div>
+
   <!-- Platform token breakdown -->
   <div class="chart-card">
     <div class="chart-header">
@@ -164,7 +173,6 @@ async function loadCharts() {
 }
 
 async function loadLiveUsage() {
-  const card = document.getElementById('live-usage-card');
   const sub  = document.getElementById('live-usage-sub');
   const bars = document.getElementById('live-usage-bars');
 
@@ -183,29 +191,49 @@ async function loadLiveUsage() {
       return;
     }
     if (data.error) {
-      sub.textContent = data.error;
+      sub.textContent = 'error: ' + data.error;
       return;
     }
 
     sub.textContent = 'live';
     const usage = data.usage;
 
-    // Render whatever usage fields the API returns as progress bars
-    const fields = extractUsageFields(usage);
+    const WINDOW_LABELS = {
+      five_hour:  '5-Hour Window',
+      seven_day:  '7-Day Window',
+      extra_usage: 'Extra Usage',
+    };
+
+    const fields = [];
+
+    // Parse the real claude.ai format: { five_hour: { utilization, resets_at }, ... }
+    for (const [key, val] of Object.entries(usage)) {
+      if (!val || val.utilization == null) continue;
+      const pct      = Math.round(val.utilization);
+      const label    = WINDOW_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const resetStr = val.resets_at
+        ? 'resets ' + new Date(val.resets_at).toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+        : '';
+      fields.push({ label, pct, resetStr });
+    }
+
     if (fields.length === 0) {
-      bars.innerHTML = '<pre style="font-size:.7rem;color:#718096;overflow:auto">' +
-                       JSON.stringify(usage, null, 2) + '</pre>';
+      bars.innerHTML = '<p style="font-size:.8rem;color:#718096">No usage data available.</p>';
       return;
     }
+
     bars.innerHTML = fields.map(f => `
       <div class="usage-bar-wrap">
         <div class="usage-bar-label">
           <span>${f.label}</span>
-          <span>${f.used.toLocaleString()} / ${f.limit.toLocaleString()} (${f.pct}%)</span>
+          <span class="usage-pct-right">
+            <strong>${f.pct}%</strong>
+            ${f.resetStr ? `<span style="color:#4a5568;margin-left:.5rem">${f.resetStr}</span>` : ''}
+          </span>
         </div>
         <div class="usage-bar-track">
           <div class="usage-bar-fill ${f.pct > 85 ? 'danger' : f.pct > 60 ? 'warn' : ''}"
-               style="width:${f.pct}%"></div>
+               style="width:${Math.min(f.pct, 100)}%"></div>
         </div>
       </div>
     `).join('');
@@ -214,40 +242,80 @@ async function loadLiveUsage() {
   }
 }
 
-function extractUsageFields(usage) {
-  // Normalize various possible response shapes from claude.ai
-  const fields = [];
-  const tryPair = (usedKey, limitKey, label) => {
-    const used  = usage[usedKey]  ?? usage['messages_used']  ?? usage['usage'];
-    const limit = usage[limitKey] ?? usage['messages_limit'] ?? usage['limit'];
-    if (used != null && limit != null && limit > 0) {
-      fields.push({ label, used, limit, pct: Math.round(used / limit * 100) });
-    }
-  };
+async function loadOllamaUsage() {
+  const sub  = document.getElementById('ollama-usage-sub');
+  const bars = document.getElementById('ollama-usage-bars');
 
-  // Try common field names
-  tryPair('messages_used',     'messages_limit',     'Messages');
-  tryPair('tokens_used',       'tokens_limit',       'Tokens');
-  tryPair('requests_used',     'requests_limit',     'Requests');
-  tryPair('input_tokens_used', 'input_tokens_limit', 'Input Tokens');
+  try {
+    const res  = await fetch('/api/ollama-com-usage');
+    const data = await res.json();
 
-  // Array of entitlement objects
-  if (Array.isArray(usage)) {
-    for (const item of usage) {
-      const used  = item.used  ?? item.consumed ?? item.current;
-      const limit = item.limit ?? item.max      ?? item.total;
-      const label = item.name  ?? item.type     ?? item.key ?? 'Usage';
-      if (used != null && limit != null && limit > 0) {
-        fields.push({ label, used, limit, pct: Math.round(used / limit * 100) });
-      }
+    if (data.error === 'no_cookie') {
+      sub.textContent = 'no session cookie — add in Settings';
+      bars.innerHTML  = '<a href="/settings" class="setup-link">Configure Ollama.com →</a>';
+      return;
     }
+    if (data.error === 'auth_failed') {
+      sub.textContent = 'session expired — update cookie in Settings';
+      bars.innerHTML  = '<a href="/settings" class="setup-link">Update cookie →</a>';
+      return;
+    }
+    if (data.error) {
+      sub.textContent = 'error: ' + data.error;
+      bars.innerHTML  = '<pre style="font-size:.7rem;color:#718096;white-space:pre-wrap">' +
+                        JSON.stringify(data, null, 2) + '</pre>';
+      return;
+    }
+
+    sub.textContent = 'live';
+    const usage  = data.data;
+    const fields = extractOllamaFields(usage);
+
+    if (fields.length === 0) {
+      // Show raw data so we can see the shape and adapt
+      bars.innerHTML = '<pre style="font-size:.7rem;color:#718096;overflow:auto;max-height:160px">' +
+                       JSON.stringify(usage, null, 2) + '</pre>';
+      return;
+    }
+
+    bars.innerHTML = fields.map(f => `
+      <div class="usage-bar-wrap">
+        <div class="usage-bar-label">
+          <span>${f.label}</span>
+          <span class="usage-pct-right">
+            <strong>${f.pct}%</strong>
+            ${f.sub ? `<span style="color:#4a5568;margin-left:.5rem">${f.sub}</span>` : ''}
+          </span>
+        </div>
+        <div class="usage-bar-track">
+          <div class="usage-bar-fill ${f.pct > 85 ? 'danger' : f.pct > 60 ? 'warn' : ''}"
+               style="width:${Math.min(f.pct, 100)}%"></div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('ollama-usage-sub').textContent = 'error: ' + e.message;
   }
+}
 
-  return fields;
+function extractOllamaFields(data) {
+  // data is an array of {label, pct, resets_at} scraped from the settings page
+  if (Array.isArray(data)) {
+    return data.map(item => ({
+      label:    item.label,
+      pct:      item.pct,
+      sub: item.resets_at
+        ? 'resets ' + new Date(item.resets_at).toLocaleString(undefined,
+            { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '',
+    }));
+  }
+  return [];
 }
 
 loadCharts();
 loadLiveUsage();
+loadOllamaUsage();
 </script>
 
 {% endblock %}

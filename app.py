@@ -174,11 +174,14 @@ def settings():
     if request.method == 'POST':
         new_key       = request.form.get('anthropic_admin_key', '').strip()
         ollama_url    = request.form.get('ollama_url', 'http://localhost:11434').strip()
-        claude_cookie = request.form.get('claude_ai_session', '').strip()
+        claude_cookie  = request.form.get('claude_ai_session', '').strip()
+        ollama_cookie  = request.form.get('ollama_com_session', '').strip()
         if new_key:
             set_config('anthropic_admin_key', new_key)
         if claude_cookie:
             set_config('claude_ai_session', claude_cookie)
+        if ollama_cookie:
+            set_config('ollama_com_session', ollama_cookie)
         set_config('ollama_url', ollama_url or 'http://localhost:11434')
         return redirect(url_for('settings'))
 
@@ -186,11 +189,13 @@ def settings():
     masked_key    = (raw_key[:12] + '…' + raw_key[-4:]) if len(raw_key) > 16 else ('*' * len(raw_key))
     ollama_url    = get_config('ollama_url', 'http://localhost:11434')
     has_claude_cookie = bool(get_config('claude_ai_session', ''))
+    has_ollama_cookie = bool(get_config('ollama_com_session', ''))
     return render_template('settings.html',
                            masked_key=masked_key,
                            has_key=bool(raw_key),
                            ollama_url=ollama_url,
-                           has_claude_cookie=has_claude_cookie)
+                           has_claude_cookie=has_claude_cookie,
+                           has_ollama_cookie=has_ollama_cookie)
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +376,7 @@ def chart_data():
         })
 
     # Daily totals — last 14 days
-    cutoff = datetime.utcnow() - timedelta(days=14)
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=14)
     recent = [e for e in entries if e.created_at >= cutoff]
     daily_map = defaultdict(lambda: {p: 0 for p in PLATFORMS})
     for e in recent:
@@ -440,6 +445,67 @@ def api_claude_usage():
         return jsonify({'error': 'usage_endpoint_not_found', 'org_id': org_id}), 200
 
     return jsonify({'ok': True, 'org_id': org_id, 'usage': usage_data})
+
+
+# ---------------------------------------------------------------------------
+# Ollama.com live usage scraper
+# ---------------------------------------------------------------------------
+
+OLLAMA_COM_HEADERS = {
+    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+    'accept': 'application/json',
+    'referer': 'https://ollama.com/',
+}
+
+
+def _ollama_session_headers(cookie_val):
+    return {**OLLAMA_COM_HEADERS,
+            'cookie': f'__Secure-session={cookie_val}'}
+
+
+@app.route('/api/ollama-com-usage')
+def api_ollama_com_usage():
+    cookie = get_config('ollama_com_session', '')
+    if not cookie:
+        return jsonify({'error': 'no_cookie'}), 200
+
+    hdrs = _ollama_session_headers(cookie)
+
+    import re as _re
+
+    try:
+        r = http.get('https://ollama.com/settings', headers=hdrs, timeout=15)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 200
+
+    if r.status_code == 401 or 'Sign in' in r.text[:2000]:
+        return jsonify({'error': 'auth_failed'}), 200
+
+    html = r.text
+    fields = []
+
+    # Pattern: label span, then pct span, then progress bar width, then data-time
+    # Matches blocks like: <span>Daily usage</span> ... <span>34.7% used</span>
+    #                      ... style="width: 34.7%" ... data-time="2026-..."
+    blocks = _re.findall(
+        r'<span[^>]*>\s*([\w\s]+usage)\s*</span>\s*'
+        r'<span[^>]*>\s*([\d.]+)%\s*used\s*</span>'
+        r'.*?data-time="([^"]+)"',
+        html, _re.DOTALL
+    )
+
+    for label, pct_str, reset_time in blocks:
+        try:
+            pct = round(float(pct_str))
+            resets = reset_time.strip()
+            fields.append({'label': label.strip(), 'pct': pct, 'resets_at': resets})
+        except ValueError:
+            continue
+
+    if not fields:
+        return jsonify({'error': 'parse_failed', 'hint': 'Could not find usage blocks in page'}), 200
+
+    return jsonify({'ok': True, 'data': fields})
 
 
 # ---------------------------------------------------------------------------

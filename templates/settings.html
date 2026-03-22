@@ -21,9 +21,19 @@
     </span>
   </label>
 
-  <label>Ollama URL
+  <label>Ollama.com Session Cookie
+    <input type="password" name="ollama_com_session"
+           placeholder="{% if has_ollama_cookie %}saved — paste to replace{% else %}paste your __Secure-next-auth.session-token value{% endif %}" />
+    <span class="hint">
+      Get it from your browser: open <strong>ollama.com/settings</strong> → DevTools (F12) →
+      Application → Cookies → copy the value of <code>__Secure-next-auth.session-token</code>.
+      Leave blank to keep existing.
+    </span>
+  </label>
+
+  <label>Ollama URL (local)
     <input type="text" name="ollama_url" value="{{ ollama_url }}" placeholder="http://localhost:11434" />
-    <span class="hint">Where your Ollama instance is running.</span>
+    <span class="hint">Where your local Ollama instance is running.</span>
   </label>
 
   <div class="form-actions">

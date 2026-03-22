@@ -207,7 +207,8 @@ textarea { resize: vertical; }
 
 /* Usage limit bars */
 .usage-bar-wrap  { margin-bottom: .9rem; }
-.usage-bar-label { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); margin-bottom: .3rem; }
+.usage-bar-label   { display: flex; justify-content: space-between; align-items: baseline; font-size: .78rem; color: var(--muted); margin-bottom: .3rem; }
+.usage-pct-right   { display: flex; align-items: baseline; gap: .25rem; font-size: .75rem; }
 .usage-bar-track { height: 10px; background: rgba(255,255,255,.07); border-radius: 99px; overflow: hidden; }
 .usage-bar-fill  { height: 100%; background: var(--accent); border-radius: 99px; transition: width .4s ease; }
 .usage-bar-fill.warn   { background: #f59e0b; }
