@@ -11,6 +11,16 @@
     <span class="hint">Requires an Admin key (sk-ant-admin…) from the Anthropic Console. Leave blank to keep existing.</span>
   </label>
 
+  <label>Claude.ai Session Cookie
+    <input type="password" name="claude_ai_session"
+           placeholder="{% if has_claude_cookie %}saved — paste to replace{% else %}paste your sessionKey value{% endif %}" />
+    <span class="hint">
+      Get it from your browser: open <strong>claude.ai</strong> → DevTools (F12) →
+      Application → Cookies → copy the value of <code>sessionKey</code>.
+      Leave blank to keep existing.
+    </span>
+  </label>
+
   <label>Ollama URL
     <input type="text" name="ollama_url" value="{{ ollama_url }}" placeholder="http://localhost:11434" />
     <span class="hint">Where your Ollama instance is running.</span>

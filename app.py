@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta, timezone
 import requests as http
 import json
+from collections import defaultdict
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///usage.db'
@@ -171,20 +172,25 @@ def delete(entry_id):
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
     if request.method == 'POST':
-        new_key    = request.form.get('anthropic_admin_key', '').strip()
-        ollama_url = request.form.get('ollama_url', 'http://localhost:11434').strip()
+        new_key       = request.form.get('anthropic_admin_key', '').strip()
+        ollama_url    = request.form.get('ollama_url', 'http://localhost:11434').strip()
+        claude_cookie = request.form.get('claude_ai_session', '').strip()
         if new_key:
             set_config('anthropic_admin_key', new_key)
+        if claude_cookie:
+            set_config('claude_ai_session', claude_cookie)
         set_config('ollama_url', ollama_url or 'http://localhost:11434')
         return redirect(url_for('settings'))
 
-    raw_key    = get_config('anthropic_admin_key', '')
-    masked_key = (raw_key[:12] + '…' + raw_key[-4:]) if len(raw_key) > 16 else ('*' * len(raw_key))
-    ollama_url = get_config('ollama_url', 'http://localhost:11434')
+    raw_key       = get_config('anthropic_admin_key', '')
+    masked_key    = (raw_key[:12] + '…' + raw_key[-4:]) if len(raw_key) > 16 else ('*' * len(raw_key))
+    ollama_url    = get_config('ollama_url', 'http://localhost:11434')
+    has_claude_cookie = bool(get_config('claude_ai_session', ''))
     return render_template('settings.html',
                            masked_key=masked_key,
                            has_key=bool(raw_key),
-                           ollama_url=ollama_url)
+                           ollama_url=ollama_url,
+                           has_claude_cookie=has_claude_cookie)
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +347,99 @@ def proxy_ollama(path):
         db.session.commit()
 
     return jsonify(data), r.status_code
+
+
+# ---------------------------------------------------------------------------
+# Chart data
+# ---------------------------------------------------------------------------
+
+@app.route('/api/chart-data')
+def chart_data():
+    entries = UsageEntry.query.all()
+
+    platforms_data = []
+    grand_total = sum(e.input_tokens + e.output_tokens for e in entries) or 1
+    for p in PLATFORMS:
+        pe = [e for e in entries if e.platform == p]
+        total_tok = sum(e.input_tokens + e.output_tokens for e in pe)
+        platforms_data.append({
+            'name':          p,
+            'input_tokens':  sum(e.input_tokens for e in pe),
+            'output_tokens': sum(e.output_tokens for e in pe),
+            'cost_usd':      round(sum(e.cost_usd for e in pe), 4),
+            'pct_of_total':  round(total_tok / grand_total * 100, 1),
+        })
+
+    # Daily totals — last 14 days
+    cutoff = datetime.utcnow() - timedelta(days=14)
+    recent = [e for e in entries if e.created_at >= cutoff]
+    daily_map = defaultdict(lambda: {p: 0 for p in PLATFORMS})
+    for e in recent:
+        day = e.created_at.strftime('%Y-%m-%d')
+        daily_map[day][e.platform] += e.input_tokens + e.output_tokens
+    daily = [{'date': d, **daily_map[d]} for d in sorted(daily_map)]
+
+    return jsonify({'platforms': platforms_data, 'daily': daily})
+
+
+# ---------------------------------------------------------------------------
+# Claude.ai live usage scraper
+# ---------------------------------------------------------------------------
+
+CLAUDE_HEADERS = {
+    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+    'accept': 'application/json',
+    'referer': 'https://claude.ai/',
+    'origin': 'https://claude.ai',
+}
+
+
+def _claude_session_headers(cookie_val):
+    cookie = cookie_val if cookie_val.startswith('sessionKey=') else f'sessionKey={cookie_val}'
+    return {**CLAUDE_HEADERS, 'cookie': cookie}
+
+
+@app.route('/api/claude-usage')
+def api_claude_usage():
+    """Fetch live usage limits from claude.ai and return JSON for the dashboard."""
+    cookie = get_config('claude_ai_session', '')
+    if not cookie:
+        return jsonify({'error': 'no_cookie'}), 200
+
+    hdrs = _claude_session_headers(cookie)
+
+    # Step 1: get organization list
+    try:
+        r = http.get('https://claude.ai/api/organizations', headers=hdrs, timeout=10)
+        if r.status_code == 401:
+            return jsonify({'error': 'auth_failed'}), 200
+        orgs = r.json()
+        if not orgs:
+            return jsonify({'error': 'no_orgs'}), 200
+        org_id = orgs[0].get('uuid') or orgs[0].get('id', '')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 200
+
+    # Step 2: try several known usage endpoints
+    usage_data = None
+    for path in [
+        f'/api/organizations/{org_id}/usage',
+        f'/api/organizations/{org_id}/limits',
+        f'/api/organizations/{org_id}/entitlements',
+        '/api/usage',
+    ]:
+        try:
+            r = http.get(f'https://claude.ai{path}', headers=hdrs, timeout=10)
+            if r.ok:
+                usage_data = r.json()
+                break
+        except Exception:
+            continue
+
+    if usage_data is None:
+        return jsonify({'error': 'usage_endpoint_not_found', 'org_id': org_id}), 200
+
+    return jsonify({'ok': True, 'org_id': org_id, 'usage': usage_data})
 
 
 # ---------------------------------------------------------------------------
