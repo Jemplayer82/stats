@@ -489,10 +489,10 @@ textarea { resize: vertical; }
 .tn-err         { color: var(--red); font-weight: 600; }
 
 /* TrueNAS bottom row: pool bars + sparkline */
-.tn-bottom-row  { display: flex; gap: 1.5rem; align-items: flex-start; margin-top: 1rem; flex-wrap: wrap; }
-.tn-pools-col   { flex: 1; min-width: 220px; }
-.tn-spark-col   { flex: 1; min-width: 260px; }
-.tn-spark-wrap  { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .75rem 1rem; }
+.tn-bottom-row  { display: flex; gap: 1.5rem; align-items: stretch; margin-top: 1rem; flex-wrap: wrap; }
+.tn-pools-col   { flex: 1; min-width: 220px; display: flex; flex-direction: column; }
+.tn-spark-col   { flex: 1; min-width: 260px; display: flex; flex-direction: column; }
+.tn-spark-wrap  { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .75rem 1rem; flex: 1; }
 .tn-spark-title { font-size: .8rem; font-weight: 600; margin-bottom: .4rem; display: flex; justify-content: space-between; align-items: center; }
 .tn-spark-legend { font-weight: 400; font-size: .75rem; display: flex; gap: .6rem; }
 .tn-sparkline   { display: block; border-radius: 4px; }
