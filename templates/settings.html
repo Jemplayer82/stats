@@ -1,16 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Settings — AI Usage{% endblock %}
+{% block title %}Settings{% endblock %}
 {% block content %}
 
 <h1>Settings</h1>
 
 <form method="POST" class="usage-form">
-  <label>Anthropic Admin API Key
-    <input type="password" name="anthropic_admin_key"
-           placeholder="{% if has_key %}{{ masked_key }} — paste new key to replace{% else %}sk-ant-admin…{% endif %}" />
-    <span class="hint">Requires an Admin key (sk-ant-admin…) from the Anthropic Console. Leave blank to keep existing.</span>
-  </label>
-
   <label>Claude.ai Session Cookie
     <input type="password" name="claude_ai_session"
            placeholder="{% if has_claude_cookie %}saved — paste to replace{% else %}paste your sessionKey value{% endif %}" />
@@ -31,9 +25,34 @@
     </span>
   </label>
 
-  <label>Ollama URL (local)
-    <input type="text" name="ollama_url" value="{{ ollama_url }}" placeholder="http://localhost:11434" />
-    <span class="hint">Where your local Ollama instance is running.</span>
+  <hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+  <h3>Proxmox Cluster</h3>
+  
+  <label>Host (IP or Domain)
+    <input type="text" name="proxmox_host" value="{{ proxmox_host }}" placeholder="https://192.168.1.10:8006" />
+  </label>
+
+  <label>Token ID
+    <input type="text" name="proxmox_token_id" value="{{ proxmox_token_id }}" placeholder="user@pve!token-name" />
+  </label>
+
+  <label>Token Secret
+    <input type="password" name="proxmox_token_secret"
+           placeholder="{% if has_proxmox_secret %}saved — paste to replace{% else %}paste your token secret{% endif %}" />
+  </label>
+
+  <hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+  <h3>Gemini (Google AI Studio / Cloud)</h3>
+  <p class="hint" style="margin-bottom: 1rem;">
+    To see usage, create a Google Cloud <strong>Service Account</strong>, grant it <strong>Monitoring Viewer</strong> role, 
+    and paste the JSON key content below.
+  </p>
+  
+  <label>Service Account JSON Key
+    <textarea name="gemini_service_account" rows="5" 
+              placeholder="{% if has_gemini_config %}saved — paste to replace{% else %}{ &quot;type&quot;: &quot;service_account&quot;, ... }{% endif %}"></textarea>
   </label>
 
   <div class="form-actions">
@@ -41,15 +60,5 @@
     <button type="submit" class="btn-submit">Save</button>
   </div>
 </form>
-
-<section class="info-box" style="margin-top:2rem">
-  <h2>Ollama Proxy</h2>
-  <p>To auto-capture Ollama token usage, point your apps at the proxy instead of Ollama directly:</p>
-  <pre class="code-block">http://localhost:5000/proxy/ollama</pre>
-  <p style="margin-top:.75rem">Example — using the CLI:</p>
-  <pre class="code-block">OLLAMA_HOST=http://localhost:5000/proxy/ollama ollama run llama3</pre>
-  <p style="margin-top:.75rem">Example — in code:</p>
-  <pre class="code-block">openai.base_url = "http://localhost:5000/proxy/ollama/v1"</pre>
-</section>
 
 {% endblock %}

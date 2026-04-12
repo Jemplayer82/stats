@@ -1,0 +1,15 @@
+[Unit]
+Description=Claude/Ollama Usage Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=landon
+WorkingDirectory=/home/landon/projects/Usage
+Environment="PATH=/home/landon/projects/Usage/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/landon/projects/Usage/venv/bin/python3 /home/landon/projects/Usage/app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

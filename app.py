@@ -1,9 +1,16 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, Response, stream_with_context
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timedelta, timezone
+from bs4 import BeautifulSoup
+from google.cloud import monitoring_v3
+from google.oauth2 import service_account
 import requests as http
+import urllib3
 import json
-from collections import defaultdict
+import time
+import re
+
+# Suppress insecure request warnings for Proxmox (often self-signed)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///usage.db'
@@ -11,55 +18,35 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-PLATFORMS = ['Claude / Anthropic', 'Ollama']
 
-MODELS = {
-    'Claude / Anthropic': [
-        'claude-opus-4-6',
-        'claude-sonnet-4-6',
-        'claude-haiku-4-5',
-        'claude-3-5-sonnet',
-        'claude-3-opus',
-        'Other',
-    ],
-    'Ollama': [
-        'llama3',
-        'llama3.1',
-        'llama3.2',
-        'mistral',
-        'phi3',
-        'gemma2',
-        'qwen2.5',
-        'deepseek-r1',
-        'Other',
-    ],
-}
+# ---------------------------------------------------------------------------
+# Configuration & Error Constants
+# ---------------------------------------------------------------------------
 
-# Cost per 1M tokens (input, output) in USD
-COSTS = {
-    'claude-opus-4-6':   (15.00, 75.00),
-    'claude-sonnet-4-6': (3.00,  15.00),
-    'claude-haiku-4-5':  (0.80,  4.00),
-    'claude-3-5-sonnet': (3.00,  15.00),
-    'claude-3-opus':     (15.00, 75.00),
-}
+# Config keys
+CONFIG_CLAUDE_AI_SESSION = 'claude_ai_session'
+CONFIG_OLLAMA_COM_SESSION = 'ollama_com_session'
+CONFIG_PROXMOX_HOST = 'proxmox_host'
+CONFIG_PROXMOX_TOKEN_ID = 'proxmox_token_id'
+CONFIG_PROXMOX_TOKEN_SECRET = 'proxmox_token_secret'
+CONFIG_GEMINI_SERVICE_ACCOUNT = 'gemini_service_account'
+
+# Error codes
+class ErrorCode:
+    NO_CONFIG = 'no_config'
+    NO_COOKIE = 'no_cookie'
+    INCOMPLETE_CONFIG = 'incomplete_config'
+    AUTH_FAILED = 'auth_failed'
+    NO_ORGS = 'no_orgs'
+    USAGE_ENDPOINT_NOT_FOUND = 'usage_endpoint_not_found'
+    PARSE_EXCEPTION = 'parse_exception'
+    PARSE_FAILED = 'parse_failed'
+    API_ERROR = 'api_error'
 
 
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
-
-class UsageEntry(db.Model):
-    id            = db.Column(db.Integer, primary_key=True)
-    platform      = db.Column(db.String(64),  nullable=False)
-    model         = db.Column(db.String(128), nullable=False)
-    input_tokens  = db.Column(db.Integer, default=0)
-    output_tokens = db.Column(db.Integer, default=0)
-    cost_usd      = db.Column(db.Float,   default=0.0)
-    note          = db.Column(db.Text,    default='')
-    source        = db.Column(db.String(32), default='manual')  # manual | anthropic_api | ollama_proxy
-    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
-
 
 class AppConfig(db.Model):
     key   = db.Column(db.String(64), primary_key=True)
@@ -84,13 +71,6 @@ def set_config(key, value):
     db.session.commit()
 
 
-def calc_cost(model, input_tokens, output_tokens):
-    if model in COSTS:
-        in_r, out_r = COSTS[model]
-        return round((input_tokens * in_r + output_tokens * out_r) / 1_000_000, 6)
-    return 0.0
-
-
 with app.app_context():
     db.create_all()
 
@@ -101,68 +81,7 @@ with app.app_context():
 
 @app.route('/')
 def index():
-    entries = UsageEntry.query.order_by(UsageEntry.created_at.desc()).all()
-
-    stats = {}
-    for p in PLATFORMS:
-        pe = [e for e in entries if e.platform == p]
-        stats[p] = {
-            'count':         len(pe),
-            'input_tokens':  sum(e.input_tokens for e in pe),
-            'output_tokens': sum(e.output_tokens for e in pe),
-            'cost_usd':      round(sum(e.cost_usd for e in pe), 4),
-        }
-
-    total = {
-        'count':         len(entries),
-        'input_tokens':  sum(e.input_tokens for e in entries),
-        'output_tokens': sum(e.output_tokens for e in entries),
-        'cost_usd':      round(sum(e.cost_usd for e in entries), 4),
-    }
-
-    return render_template('index.html', entries=entries, stats=stats, total=total, platforms=PLATFORMS)
-
-
-# ---------------------------------------------------------------------------
-# Manual log
-# ---------------------------------------------------------------------------
-
-@app.route('/add', methods=['GET', 'POST'])
-def add():
-    if request.method == 'POST':
-        platform      = request.form['platform']
-        model         = request.form['model']
-        if model == 'Other':
-            model = request.form.get('model_custom', 'Other').strip() or 'Other'
-        input_tokens  = int(request.form.get('input_tokens') or 0)
-        output_tokens = int(request.form.get('output_tokens') or 0)
-        note          = request.form.get('note', '')
-        cost          = calc_cost(model, input_tokens, output_tokens)
-
-        manual_cost = request.form.get('cost_usd', '').strip()
-        if manual_cost:
-            try:
-                cost = float(manual_cost)
-            except ValueError:
-                pass
-
-        db.session.add(UsageEntry(
-            platform=platform, model=model,
-            input_tokens=input_tokens, output_tokens=output_tokens,
-            cost_usd=cost, note=note, source='manual',
-        ))
-        db.session.commit()
-        return redirect(url_for('index'))
-
-    return render_template('add.html', platforms=PLATFORMS, models=MODELS)
-
-
-@app.route('/delete/<int:entry_id>', methods=['POST'])
-def delete(entry_id):
-    entry = db.get_or_404(UsageEntry, entry_id)
-    db.session.delete(entry)
-    db.session.commit()
-    return redirect(url_for('index'))
+    return render_template('index.html')
 
 
 # ---------------------------------------------------------------------------
@@ -172,219 +91,174 @@ def delete(entry_id):
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
     if request.method == 'POST':
-        new_key       = request.form.get('anthropic_admin_key', '').strip()
-        ollama_url    = request.form.get('ollama_url', 'http://localhost:11434').strip()
-        claude_cookie  = request.form.get('claude_ai_session', '').strip()
-        ollama_cookie  = request.form.get('ollama_com_session', '').strip()
-        if new_key:
-            set_config('anthropic_admin_key', new_key)
+        claude_cookie  = request.form.get(CONFIG_CLAUDE_AI_SESSION, '').strip()
+        ollama_cookie  = request.form.get(CONFIG_OLLAMA_COM_SESSION, '').strip()
+        proxmox_host   = request.form.get(CONFIG_PROXMOX_HOST, '').strip()
+        proxmox_token_id = request.form.get(CONFIG_PROXMOX_TOKEN_ID, '').strip()
+        proxmox_secret = request.form.get(CONFIG_PROXMOX_TOKEN_SECRET, '').strip()
+        gemini_json    = request.form.get(CONFIG_GEMINI_SERVICE_ACCOUNT, '').strip()
+
         if claude_cookie:
-            set_config('claude_ai_session', claude_cookie)
+            set_config(CONFIG_CLAUDE_AI_SESSION, claude_cookie)
         if ollama_cookie:
-            set_config('ollama_com_session', ollama_cookie)
-        set_config('ollama_url', ollama_url or 'http://localhost:11434')
+            set_config(CONFIG_OLLAMA_COM_SESSION, ollama_cookie)
+        if proxmox_host:
+            set_config(CONFIG_PROXMOX_HOST, proxmox_host)
+        if proxmox_token_id:
+            set_config(CONFIG_PROXMOX_TOKEN_ID, proxmox_token_id)
+        if proxmox_secret:
+            set_config(CONFIG_PROXMOX_TOKEN_SECRET, proxmox_secret)
+        if gemini_json:
+            set_config(CONFIG_GEMINI_SERVICE_ACCOUNT, gemini_json)
+
         return redirect(url_for('settings'))
 
-    raw_key       = get_config('anthropic_admin_key', '')
-    masked_key    = (raw_key[:12] + '…' + raw_key[-4:]) if len(raw_key) > 16 else ('*' * len(raw_key))
-    ollama_url    = get_config('ollama_url', 'http://localhost:11434')
-    has_claude_cookie = bool(get_config('claude_ai_session', ''))
-    has_ollama_cookie = bool(get_config('ollama_com_session', ''))
     return render_template('settings.html',
-                           masked_key=masked_key,
-                           has_key=bool(raw_key),
-                           ollama_url=ollama_url,
-                           has_claude_cookie=has_claude_cookie,
-                           has_ollama_cookie=has_ollama_cookie)
+                           has_claude_cookie=bool(get_config(CONFIG_CLAUDE_AI_SESSION, '')),
+                           has_ollama_cookie=bool(get_config(CONFIG_OLLAMA_COM_SESSION, '')),
+                           proxmox_host=get_config(CONFIG_PROXMOX_HOST, ''),
+                           proxmox_token_id=get_config(CONFIG_PROXMOX_TOKEN_ID, ''),
+                           has_proxmox_secret=bool(get_config(CONFIG_PROXMOX_TOKEN_SECRET, '')),
+                           has_gemini_config=bool(get_config(CONFIG_GEMINI_SERVICE_ACCOUNT, '')))
 
 
 # ---------------------------------------------------------------------------
-# Sync page + Anthropic sync endpoint
+# Gemini (Google Cloud Monitoring) live usage
 # ---------------------------------------------------------------------------
 
-@app.route('/sync')
-def sync():
-    return render_template('sync.html')
-
-
-@app.route('/sync/anthropic', methods=['POST'])
-def sync_anthropic():
-    api_key = get_config('anthropic_admin_key', '')
-    if not api_key:
-        return jsonify({'error': 'No Anthropic admin API key — go to Settings first.'}), 400
-
-    days = int((request.json or {}).get('days', 30))
-    now  = datetime.now(timezone.utc)
-    starting_at = (now - timedelta(days=days)).strftime('%Y-%m-%dT00:00:00Z')
-    ending_at   = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+@app.route('/api/gemini-usage')
+def api_gemini_usage():
+    gemini_json = get_config(CONFIG_GEMINI_SERVICE_ACCOUNT, '')
+    if not gemini_json:
+        return jsonify({'error': ErrorCode.NO_CONFIG}), 200
 
     try:
-        resp = http.get(
-            'https://api.anthropic.com/v1/organizations/usage_report/messages',
-            headers={
-                'anthropic-version': '2023-06-01',
-                'x-api-key': api_key,
-            },
-            params={
-                'starting_at':  starting_at,
-                'ending_at':    ending_at,
-                'bucket_width': '1d',
-                'group_by[]':   'model',
-            },
-            timeout=30,
-        )
-    except Exception as e:
-        return jsonify({'error': str(e)}), 502
-
-    if not resp.ok:
-        return jsonify({'error': f'Anthropic API {resp.status_code}: {resp.text}'}), 502
-
-    data    = resp.json()
-    added   = 0
-    skipped = 0
-
-    # Flatten nested or flat bucket formats
-    buckets = []
-    for item in data.get('data', []):
-        if 'buckets' in item:
-            buckets.extend(item['buckets'])
-        else:
-            buckets.append(item)
-
-    for bucket in buckets:
-        start_str = bucket.get('start_time') or bucket.get('date', '')
-        try:
-            start_dt = datetime.fromisoformat(start_str.replace('Z', '+00:00')).replace(tzinfo=None)
-        except (ValueError, AttributeError):
-            continue
-
-        model         = bucket.get('model', 'unknown')
-        input_tokens  = (bucket.get('input_tokens', 0)
-                         + bucket.get('cache_creation_input_tokens', 0)
-                         + bucket.get('cache_read_input_tokens', 0))
-        output_tokens = bucket.get('output_tokens', 0)
-
-        exists = UsageEntry.query.filter_by(
-            source='anthropic_api', model=model, created_at=start_dt
-        ).first()
-
-        if not exists:
-            db.session.add(UsageEntry(
-                platform='Claude / Anthropic',
-                model=model,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                cost_usd=calc_cost(model, input_tokens, output_tokens),
-                source='anthropic_api',
-                created_at=start_dt,
-            ))
-            added += 1
-        else:
-            skipped += 1
-
-    db.session.commit()
-    return jsonify({'added': added, 'skipped': skipped})
-
-
-# ---------------------------------------------------------------------------
-# Ollama proxy — point your apps at /proxy/ollama instead of :11434
-# ---------------------------------------------------------------------------
-
-SKIP_HEADERS = {'host', 'content-length', 'transfer-encoding', 'connection'}
-
-
-@app.route('/proxy/ollama/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
-def proxy_ollama(path):
-    ollama_url = get_config('ollama_url', 'http://localhost:11434')
-    target     = f"{ollama_url}/{path}"
-    body       = request.get_json(silent=True) or {}
-    is_stream  = body.get('stream', path in ('api/generate', 'api/chat'))
-    fwd_hdrs   = {k: v for k, v in request.headers if k.lower() not in SKIP_HEADERS}
-
-    if is_stream:
-        def generate():
-            last = {}
-            try:
-                with http.request(
-                    method=request.method, url=target,
-                    json=body, headers=fwd_hdrs, stream=True, timeout=120,
-                ) as r:
-                    for line in r.iter_lines():
-                        if line:
-                            yield line + b'\n'
-                            try:
-                                last = json.loads(line)
-                            except json.JSONDecodeError:
-                                pass
-            except Exception as e:
-                yield (json.dumps({'error': str(e)}) + '\n').encode()
-                return
-
-            in_tok  = last.get('prompt_eval_count', 0)
-            out_tok = last.get('eval_count', 0)
-            model   = last.get('model') or body.get('model', 'unknown')
-            if in_tok or out_tok:
-                db.session.add(UsageEntry(
-                    platform='Ollama', model=model,
-                    input_tokens=in_tok, output_tokens=out_tok,
-                    cost_usd=0.0, source='ollama_proxy',
-                ))
-                db.session.commit()
-
-        return Response(stream_with_context(generate()), content_type='application/x-ndjson')
-
-    try:
-        r    = http.request(method=request.method, url=target,
-                            json=body, headers=fwd_hdrs, timeout=120)
-        data = r.json()
-    except Exception as e:
-        return jsonify({'error': str(e)}), 502
-
-    in_tok  = data.get('prompt_eval_count', 0)
-    out_tok = data.get('eval_count', 0)
-    model   = data.get('model') or body.get('model', 'unknown')
-    if in_tok or out_tok:
-        db.session.add(UsageEntry(
-            platform='Ollama', model=model,
-            input_tokens=in_tok, output_tokens=out_tok,
-            cost_usd=0.0, source='ollama_proxy',
-        ))
-        db.session.commit()
-
-    return jsonify(data), r.status_code
-
-
-# ---------------------------------------------------------------------------
-# Chart data
-# ---------------------------------------------------------------------------
-
-@app.route('/api/chart-data')
-def chart_data():
-    entries = UsageEntry.query.all()
-
-    platforms_data = []
-    grand_total = sum(e.input_tokens + e.output_tokens for e in entries) or 1
-    for p in PLATFORMS:
-        pe = [e for e in entries if e.platform == p]
-        total_tok = sum(e.input_tokens + e.output_tokens for e in pe)
-        platforms_data.append({
-            'name':          p,
-            'input_tokens':  sum(e.input_tokens for e in pe),
-            'output_tokens': sum(e.output_tokens for e in pe),
-            'cost_usd':      round(sum(e.cost_usd for e in pe), 4),
-            'pct_of_total':  round(total_tok / grand_total * 100, 1),
+        info = json.loads(gemini_json)
+        project_id = info.get('project_id')
+        credentials = service_account.Credentials.from_service_account_info(info)
+        client = monitoring_v3.MetricServiceClient(credentials=credentials)
+        
+        # Define the time interval (last 24 hours)
+        now = time.time()
+        seconds = int(now)
+        nanos = int((now - seconds) * 10**9)
+        interval = monitoring_v3.TimeInterval({
+            "end_time": {"seconds": seconds, "nanos": nanos},
+            "start_time": {"seconds": seconds - 86400, "nanos": nanos},
         })
 
-    # Daily totals — last 14 days
-    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=14)
-    recent = [e for e in entries if e.created_at >= cutoff]
-    daily_map = defaultdict(lambda: {p: 0 for p in PLATFORMS})
-    for e in recent:
-        day = e.created_at.strftime('%Y-%m-%d')
-        daily_map[day][e.platform] += e.input_tokens + e.output_tokens
-    daily = [{'date': d, **daily_map[d]} for d in sorted(daily_map)]
+        # Try several common metrics for Gemini usage
+        metrics_to_try = [
+            'serviceruntime.googleapis.com/api/request_count',
+            'generativelanguage.googleapis.com/generate_content_requests'
+        ]
+        
+        usage_data = []
+        
+        for metric_type in metrics_to_try:
+            # Filter for the Generative Language API
+            filter_str = (
+                f'metric.type = "{metric_type}" AND '
+                'resource.labels.service = "generativelanguage.googleapis.com"'
+            )
+            
+            try:
+                pages = client.list_time_series(
+                    request={
+                        "name": f"projects/{project_id}",
+                        "filter": filter_str,
+                        "interval": interval,
+                        "view": monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
+                    }
+                )
+                
+                for series in pages:
+                    # Identify the label (method name or metric name)
+                    label = series.metric.labels.get('method') or \
+                            series.metric.type.split('/')[-1].replace('_', ' ').title()
+                    
+                    # Sum up points in the interval
+                    total_count = sum(p.value.int64_value for p in series.points)
+                    
+                    if total_count > 0:
+                        # Clean up label if it's a full method path
+                        if '.' in label:
+                            label = label.split('.')[-1].replace('_', ' ').title()
+                            
+                        usage_data.append({
+                            'label': label,
+                            'usage': total_count
+                        })
+                
+                # If we found data for one metric, we can stop or combine
+                if usage_data:
+                    break
+            except Exception:
+                continue
 
-    return jsonify({'platforms': platforms_data, 'daily': daily})
+        return jsonify({'ok': True, 'project_id': project_id, 'data': usage_data})
+    except Exception as e:
+        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
+
+
+# ---------------------------------------------------------------------------
+# Proxmox live status
+# ---------------------------------------------------------------------------
+
+@app.route('/api/proxmox-status')
+def api_proxmox_status():
+    host = get_config(CONFIG_PROXMOX_HOST, '')
+    token_id = get_config(CONFIG_PROXMOX_TOKEN_ID, '')
+    secret = get_config(CONFIG_PROXMOX_TOKEN_SECRET, '')
+
+    if not all([host, token_id, secret]):
+        return jsonify({'error': ErrorCode.INCOMPLETE_CONFIG}), 200
+
+    # Ensure host has protocol
+    if not host.startswith('http'):
+        host = f'https://{host}'
+    
+    # Proxmox uses a specific token format in the Authorization header
+    headers = {
+        'Authorization': f'PVEAPIToken={token_id}={secret}',
+        'Accept': 'application/json'
+    }
+
+    try:
+        # Get cluster resources (nodes, VMs, containers)
+        url = f"{host.rstrip('/')}/api2/json/cluster/resources"
+        r = http.get(url, headers=headers, timeout=10, verify=False)
+
+        if not r.ok:
+            return jsonify({'error': ErrorCode.API_ERROR, 'details': r.text, 'status': r.status_code}), 200
+
+        data = r.json().get('data', [])
+        resources = [res for res in data if res.get('type') in ['node', 'qemu', 'lxc']]
+
+        # Enrich each node with detailed stats from its status endpoint
+        node_names = [res['node'] for res in resources if res.get('type') == 'node']
+        node_stats = {}
+        for node in node_names:
+            try:
+                sr = http.get(f"{host.rstrip('/')}/api2/json/nodes/{node}/status",
+                              headers=headers, timeout=10, verify=False)
+                if sr.ok:
+                    node_stats[node] = sr.json().get('data', {})
+            except Exception:
+                pass
+
+        # Merge stats into node resources
+        for res in resources:
+            if res.get('type') == 'node' and res['node'] in node_stats:
+                res.update(node_stats[res['node']])
+
+        return jsonify({'ok': True, 'resources': resources})
+    except Exception as e:
+        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
+
+
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -407,9 +281,9 @@ def _claude_session_headers(cookie_val):
 @app.route('/api/claude-usage')
 def api_claude_usage():
     """Fetch live usage limits from claude.ai and return JSON for the dashboard."""
-    cookie = get_config('claude_ai_session', '')
+    cookie = get_config(CONFIG_CLAUDE_AI_SESSION, '')
     if not cookie:
-        return jsonify({'error': 'no_cookie'}), 200
+        return jsonify({'error': ErrorCode.NO_COOKIE}), 200
 
     hdrs = _claude_session_headers(cookie)
 
@@ -417,13 +291,13 @@ def api_claude_usage():
     try:
         r = http.get('https://claude.ai/api/organizations', headers=hdrs, timeout=10)
         if r.status_code == 401:
-            return jsonify({'error': 'auth_failed'}), 200
+            return jsonify({'error': ErrorCode.AUTH_FAILED}), 200
         orgs = r.json()
         if not orgs:
-            return jsonify({'error': 'no_orgs'}), 200
+            return jsonify({'error': ErrorCode.NO_ORGS}), 200
         org_id = orgs[0].get('uuid') or orgs[0].get('id', '')
     except Exception as e:
-        return jsonify({'error': str(e)}), 200
+        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
 
     # Step 2: try several known usage endpoints
     usage_data = None
@@ -442,7 +316,7 @@ def api_claude_usage():
             continue
 
     if usage_data is None:
-        return jsonify({'error': 'usage_endpoint_not_found', 'org_id': org_id}), 200
+        return jsonify({'error': ErrorCode.USAGE_ENDPOINT_NOT_FOUND, 'org_id': org_id}), 200
 
     return jsonify({'ok': True, 'org_id': org_id, 'usage': usage_data})
 
@@ -453,7 +327,17 @@ def api_claude_usage():
 
 OLLAMA_COM_HEADERS = {
     'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-    'accept': 'application/json',
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'accept-language': 'en-US,en;q=0.9',
+    'cache-control': 'max-age=0',
+    'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Linux"',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'same-origin',
+    'sec-fetch-user': '?1',
+    'upgrade-insecure-requests': '1',
     'referer': 'https://ollama.com/',
 }
 
@@ -465,57 +349,76 @@ def _ollama_session_headers(cookie_val):
 
 @app.route('/api/ollama-com-usage')
 def api_ollama_com_usage():
-    cookie = get_config('ollama_com_session', '')
+    cookie = get_config(CONFIG_OLLAMA_COM_SESSION, '')
     if not cookie:
-        return jsonify({'error': 'no_cookie'}), 200
+        return jsonify({'error': ErrorCode.NO_COOKIE}), 200
 
     hdrs = _ollama_session_headers(cookie)
-
-    import re as _re
 
     try:
         r = http.get('https://ollama.com/settings', headers=hdrs, timeout=15)
     except Exception as e:
-        return jsonify({'error': str(e)}), 200
+        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
 
     if r.status_code == 401 or 'Sign in' in r.text[:2000]:
-        return jsonify({'error': 'auth_failed'}), 200
+        return jsonify({'error': ErrorCode.AUTH_FAILED}), 200
 
     html = r.text
     fields = []
+    debug_html_saved = False
 
-    # Pattern: label span, then pct span, then progress bar width, then data-time
-    # Matches blocks like: <span>Daily usage</span> ... <span>34.7% used</span>
-    #                      ... style="width: 34.7%" ... data-time="2026-..."
-    blocks = _re.findall(
-        r'<span[^>]*>\s*([\w\s]+usage)\s*</span>\s*'
-        r'<span[^>]*>\s*([\d.]+)%\s*used\s*</span>'
-        r'.*?data-time="([^"]+)"',
-        html, _re.DOTALL
-    )
+    # Robust parsing with BeautifulSoup
+    try:
+        soup = BeautifulSoup(html, 'html.parser')
 
-    for label, pct_str, reset_time in blocks:
-        try:
-            pct = round(float(pct_str))
-            resets = reset_time.strip()
-            fields.append({'label': label.strip(), 'pct': pct, 'resets_at': resets})
-        except ValueError:
-            continue
+        # Look for the usage section
+        # We search for elements containing 'usage' and then navigate to their parent/siblings
+        usage_labels = soup.find_all(lambda tag: tag.name == "span" and "usage" in tag.text.lower())
+
+        for label_tag in usage_labels:
+            label_text = label_tag.get_text(strip=True)
+
+            # Find the percentage (usually a sibling or in a parent container)
+            # Pattern: label span -> percentage span -> progress bar -> data-time
+            container = label_tag.parent
+            if not container: continue
+
+            # Find pct (e.g., "34.7% used")
+            pct_tag = container.find(lambda tag: tag.name == "span" and "%" in tag.text)
+            if not pct_tag: continue
+
+            pct_match = re.search(r'([\d.]+)%', pct_tag.text)
+            if not pct_match: continue
+            pct = round(float(pct_match.group(1)))
+
+            # Find reset time (usually in a [data-time] attribute nearby)
+            reset_tag = container.find(lambda tag: tag.has_attr('data-time'))
+            reset_time = reset_tag.get('data-time') if reset_tag else ''
+
+            fields.append({
+                'label': label_text,
+                'pct': pct,
+                'resets_at': reset_time
+            })
+
+    except Exception as e:
+        # Save HTML snapshot for debugging once
+        with open('debug_ollama_fail.html', 'w') as f:
+            f.write(html)
+        debug_html_saved = True
+        return jsonify({'error': ErrorCode.PARSE_EXCEPTION, 'details': str(e), 'debug': 'See debug_ollama_fail.html'}), 200
 
     if not fields:
-        return jsonify({'error': 'parse_failed', 'hint': 'Could not find usage blocks in page'}), 200
+        # Save HTML snapshot only if not already saved in exception handler
+        if not debug_html_saved:
+            with open('debug_ollama_fail.html', 'w') as f:
+                f.write(html)
+        return jsonify({'error': ErrorCode.PARSE_FAILED, 'hint': 'Could not find usage blocks in page. See debug_ollama_fail.html'}), 200
 
     return jsonify({'ok': True, 'data': fields})
 
 
-# ---------------------------------------------------------------------------
-# API helpers
-# ---------------------------------------------------------------------------
-
-@app.route('/api/models/<platform>')
-def api_models(platform):
-    return jsonify(MODELS.get(platform, []))
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)

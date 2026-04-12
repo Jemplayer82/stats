@@ -1,28 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — AI Usage{% endblock %}
+{% block title %}Usage Meters{% endblock %}
 {% block content %}
 
-<h1>Dashboard</h1>
+<h1>Usage Meters</h1>
 
-<!-- Summary cards -->
-<section class="stats-grid">
-  <div class="stat-card total">
-    <div class="stat-label">Total Requests</div>
-    <div class="stat-value">{{ total.count }}</div>
-    <div class="stat-sub">{{ "{:,}".format(total.input_tokens) }} in / {{ "{:,}".format(total.output_tokens) }} out tokens</div>
-    <div class="stat-cost">${{ "%.4f"|format(total.cost_usd) }}</div>
-  </div>
-  {% for platform, s in stats.items() %}
-  <div class="stat-card">
-    <div class="stat-label">{{ platform }}</div>
-    <div class="stat-value">{{ s.count }}</div>
-    <div class="stat-sub">{{ "{:,}".format(s.input_tokens) }} in / {{ "{:,}".format(s.output_tokens) }} out tokens</div>
-    <div class="stat-cost">${{ "%.4f"|format(s.cost_usd) }}</div>
-  </div>
-  {% endfor %}
-</section>
-
-<!-- Charts -->
 <section class="charts-grid">
   <!-- Claude.ai live usage limit -->
   <div class="chart-card" id="live-usage-card">
@@ -42,134 +23,187 @@
     <div id="ollama-usage-bars"></div>
   </div>
 
-  <!-- Platform token breakdown -->
-  <div class="chart-card">
+  <!-- Gemini usage -->
+  <div class="chart-card" id="gemini-usage-card">
     <div class="chart-header">
-      <span class="chart-title">Tokens by Platform</span>
-      <span class="chart-sub">all time</span>
+      <span class="chart-title">Gemini API Usage (Cloud)</span>
+      <span class="chart-sub" id="gemini-usage-sub">loading…</span>
     </div>
-    <canvas id="platformChart" height="120"></canvas>
-  </div>
-
-  <!-- Daily usage (last 14 days) -->
-  <div class="chart-card chart-wide">
-    <div class="chart-header">
-      <span class="chart-title">Daily Token Usage</span>
-      <span class="chart-sub">last 14 days</span>
-    </div>
-    <canvas id="dailyChart" height="100"></canvas>
+    <div id="gemini-usage-bars"></div>
   </div>
 </section>
 
-<!-- History table -->
-<section class="table-section">
-  <h2>History</h2>
-  {% if entries %}
-  <table>
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Platform</th>
-        <th>Model</th>
-        <th>Input Tokens</th>
-        <th>Output Tokens</th>
-        <th>Cost (USD)</th>
-        <th>Note</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for e in entries %}
-      <tr>
-        <td class="mono">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-        <td><span class="badge badge-{{ e.platform | lower | replace(' ', '-') | replace('/', '') }}">{{ e.platform }}</span></td>
-        <td class="mono">{{ e.model }}</td>
-        <td class="num">{{ "{:,}".format(e.input_tokens) }}</td>
-        <td class="num">{{ "{:,}".format(e.output_tokens) }}</td>
-        <td class="num">${{ "%.6f"|format(e.cost_usd) }}</td>
-        <td class="note">{{ e.note }}</td>
-        <td>
-          <form method="POST" action="{{ url_for('delete', entry_id=e.id) }}" onsubmit="return confirm('Delete this entry?')">
-            <button type="submit" class="btn-delete">✕</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="empty">No entries yet. <a href="{{ url_for('add') }}">Log your first usage.</a></p>
-  {% endif %}
+<!-- Proxmox Cluster Resources -->
+<section class="proxmox-section">
+  <div class="section-header">
+    <h2>Proxmox Cluster</h2>
+    <span class="chart-sub" id="proxmox-sub">loading…</span>
+  </div>
+  <div id="proxmox-grid" class="proxmox-columns"></div>
 </section>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-const PLATFORM_COLORS = {
-  'Claude / Anthropic': { input: 'rgba(217,119,6,0.85)', output: 'rgba(217,119,6,0.4)' },
-  'Ollama':             { input: 'rgba(59,130,246,0.85)', output: 'rgba(59,130,246,0.4)' },
-};
+// Formatting helpers
+function formatUptime(seconds) {
+  if (!seconds || seconds === 0) return 'off';
+  const d = Math.floor(seconds / (3600*24));
+  const h = Math.floor(seconds % (3600*24) / 3600);
+  const m = Math.floor(seconds % 3600 / 60);
+  return `${d}d ${h}h ${m}m`;
+}
 
-Chart.defaults.color = '#718096';
-Chart.defaults.borderColor = '#2a2d3a';
-Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let l = 0, n = parseInt(bytes, 10) || 0;
+  while(n >= 1024 && ++l) n = n/1024;
+  return n.toFixed(1) + ' ' + units[l];
+}
 
-async function loadCharts() {
-  const res  = await fetch('/api/chart-data');
-  const data = await res.json();
+// Track previous network samples for rate calculation
+const _netPrev = {};
 
-  // ── Platform bar chart ──────────────────────────────────────────────────
-  new Chart(document.getElementById('platformChart'), {
-    type: 'bar',
-    data: {
-      labels: data.platforms.map(p => p.name),
-      datasets: [
-        {
-          label: 'Input Tokens',
-          data: data.platforms.map(p => p.input_tokens),
-          backgroundColor: data.platforms.map(p => PLATFORM_COLORS[p.name]?.input || '#7c3aed'),
-          borderRadius: 4,
-        },
-        {
-          label: 'Output Tokens',
-          data: data.platforms.map(p => p.output_tokens),
-          backgroundColor: data.platforms.map(p => PLATFORM_COLORS[p.name]?.output || '#5b21b6'),
-          borderRadius: 4,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      indexAxis: 'y',
-      plugins: { legend: { position: 'bottom' } },
-      scales: {
-        x: { stacked: false, grid: { color: '#2a2d3a' } },
-        y: { grid: { display: false } },
-      },
-    },
-  });
+function calcNetRate(vmid, netin, netout) {
+  const now = Date.now();
+  const key = vmid;
+  const prev = _netPrev[key];
+  _netPrev[key] = { netin, netout, ts: now };
+  if (!prev) return { inRate: null, outRate: null };
+  const elapsed = (now - prev.ts) / 1000; // seconds
+  if (elapsed <= 0) return { inRate: null, outRate: null };
+  return {
+    inRate:  Math.max(0, (netin  - prev.netin)  / elapsed),
+    outRate: Math.max(0, (netout - prev.netout) / elapsed),
+  };
+}
 
-  // ── Daily chart ─────────────────────────────────────────────────────────
-  const platforms = ['Claude / Anthropic', 'Ollama'];
-  new Chart(document.getElementById('dailyChart'), {
-    type: 'bar',
-    data: {
-      labels: data.daily.map(d => d.date),
-      datasets: platforms.map(p => ({
-        label: p,
-        data: data.daily.map(d => d[p] || 0),
-        backgroundColor: PLATFORM_COLORS[p]?.input || '#7c3aed',
-        borderRadius: 3,
-      })),
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { position: 'bottom' } },
-      scales: {
-        x: { stacked: true, grid: { display: false } },
-        y: { stacked: true, grid: { color: '#2a2d3a' } },
-      },
-    },
-  });
+function formatRate(bytesPerSec) {
+  if (bytesPerSec === null) return '…';
+  const mbps = (bytesPerSec * 8) / 1_000_000;
+  if (mbps < 0.1) return (mbps * 1000).toFixed(0) + ' Kbps';
+  return mbps.toFixed(1) + ' Mbps';
+}
+
+async function loadProxmoxStatus() {
+  const sub = document.getElementById('proxmox-sub');
+  const grid = document.getElementById('proxmox-grid');
+
+  try {
+    const res = await fetch('/api/proxmox-status');
+    const data = await res.json();
+
+    if (data.error === 'incomplete_config') {
+      sub.textContent = 'not configured — add in Settings';
+      grid.innerHTML = '<a href="/settings" class="setup-link">Configure Proxmox →</a>';
+      return;
+    }
+    if (data.error) {
+      sub.textContent = 'error: ' + data.error;
+      return;
+    }
+
+    sub.textContent = 'refreshed ' + new Date().toLocaleTimeString();
+    const resources = data.resources;
+
+    // Group by node
+    const nodes = {};
+    for (const res of resources) {
+      const nodeName = res.node;
+      if (!nodes[nodeName]) nodes[nodeName] = { info: null, machines: [] };
+      if (res.type === 'node') nodes[nodeName].info = res;
+      else nodes[nodeName].machines.push(res);
+    }
+
+    if (Object.keys(nodes).length === 0) {
+      grid.innerHTML = '<p style="color:#718096">No resources found.</p>';
+      return;
+    }
+
+    grid.innerHTML = Object.entries(nodes).sort(([a],[b]) => a.localeCompare(b)).map(([nodeName, node]) => {
+      const info = node.info || {};
+      const nodeOnline = info.status === 'online';
+
+      // Node stats
+      const cpuPct     = info.cpu != null ? Math.round(info.cpu * 100) : null;
+      const memUsed    = info.memory?.used ?? info.mem ?? null;
+      const memTotal   = info.memory?.total ?? info.maxmem ?? null;
+      const memPct     = memUsed && memTotal ? Math.round(memUsed / memTotal * 100) : null;
+      const diskUsed   = info.rootfs?.used ?? info.disk ?? null;
+      const diskTotal  = info.rootfs?.total ?? info.maxdisk ?? null;
+      const diskPct    = diskUsed && diskTotal ? Math.round(diskUsed / diskTotal * 100) : null;
+
+      const nodeStatsHtml = cpuPct != null ? `
+        <div class="px-node-stats">
+          <div class="px-node-stat">
+            <span class="px-label">CPU</span>
+            <div class="px-node-bar"><div class="px-node-bar-fill ${cpuPct>85?'danger':cpuPct>60?'warn':''}" style="width:${cpuPct}%"></div></div>
+            <span class="px-node-pct">${cpuPct}%</span>
+          </div>
+          ${memPct != null ? `<div class="px-node-stat">
+            <span class="px-label">RAM</span>
+            <div class="px-node-bar"><div class="px-node-bar-fill ${memPct>85?'danger':memPct>60?'warn':''}" style="width:${memPct}%"></div></div>
+            <span class="px-node-pct">${memPct}% <small>${formatBytes(memUsed)}/${formatBytes(memTotal)}</small></span>
+          </div>` : ''}
+          ${diskPct != null ? `<div class="px-node-stat">
+            <span class="px-label">Disk</span>
+            <div class="px-node-bar"><div class="px-node-bar-fill ${diskPct>85?'danger':diskPct>60?'warn':''}" style="width:${diskPct}%"></div></div>
+            <span class="px-node-pct">${diskPct}% <small>${formatBytes(diskUsed)}/${formatBytes(diskTotal)}</small></span>
+          </div>` : ''}
+        </div>` : '';
+
+      // Sort: stopped first, then running, sorted by name within each group
+      const sorted = [...node.machines].sort((a, b) => {
+        const aRunning = a.status === 'running' ? 1 : 0;
+        const bRunning = b.status === 'running' ? 1 : 0;
+        if (aRunning !== bRunning) return aRunning - bRunning;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+
+      const machineCards = sorted.length === 0
+        ? '<div class="px-empty">No VMs or containers</div>'
+        : sorted.map(res => {
+            const isRunning = res.status === 'running';
+            const cpuPct = Math.round((res.cpu || 0) * 100);
+            const icon = res.type === 'qemu' ? '🖥️' : '📦';
+            const { inRate, outRate } = calcNetRate(res.vmid, res.netin || 0, res.netout || 0);
+            return `
+              <div class="px-card ${!isRunning ? 'is-off' : ''}">
+                <div class="px-top">
+                  <span class="px-type">${icon} ${res.type.toUpperCase()}</span>
+                </div>
+                <div class="px-name">${res.name || ''} <small>#${res.vmid}</small></div>
+                <div class="px-stats">
+                  <div class="px-stat-row">
+                    <span class="px-label">CPU</span>
+                    <span class="px-value">${isRunning ? cpuPct + '%' : '-'}</span>
+                  </div>
+                  <div class="px-stat-row">
+                    <span class="px-label">Uptime</span>
+                    <span class="px-value">${formatUptime(res.uptime)}</span>
+                  </div>
+                  <div class="px-stat-row">
+                    <span class="px-label">Network</span>
+                    <span class="px-value">↓ ${isRunning ? formatRate(inRate) : '-'} / ↑ ${isRunning ? formatRate(outRate) : '-'}</span>
+                  </div>
+                </div>
+                <div class="px-status ${isRunning ? 'on' : 'off'}">${res.status}</div>
+              </div>`;
+          }).join('');
+
+      return `
+        <div class="px-column">
+          <div class="px-column-header node-${nodeName.toLowerCase()}">
+            <span class="px-column-title">🖲️ ${nodeName}</span>
+            <span class="px-status ${nodeOnline ? 'on' : 'off'}" style="position:static;border-radius:4px">${info.status || 'unknown'}</span>
+          </div>
+          ${nodeStatsHtml}
+          <div class="px-column-body">${machineCards}</div>
+        </div>`;
+    }).join('');
+
+  } catch (e) {
+    sub.textContent = 'error: ' + e.message;
+  }
 }
 
 async function loadLiveUsage() {
@@ -272,7 +306,6 @@ async function loadOllamaUsage() {
     const fields = extractOllamaFields(usage);
 
     if (fields.length === 0) {
-      // Show raw data so we can see the shape and adapt
       bars.innerHTML = '<pre style="font-size:.7rem;color:#718096;overflow:auto;max-height:160px">' +
                        JSON.stringify(usage, null, 2) + '</pre>';
       return;
@@ -313,9 +346,64 @@ function extractOllamaFields(data) {
   return [];
 }
 
-loadCharts();
+async function loadGeminiUsage() {
+  const sub = document.getElementById('gemini-usage-sub');
+  const bars = document.getElementById('gemini-usage-bars');
+
+  try {
+    const res = await fetch('/api/gemini-usage');
+    const data = await res.json();
+
+    if (data.error === 'no_config') {
+      sub.textContent = 'not configured — add in Settings';
+      bars.innerHTML = '<a href="/settings" class="setup-link">Configure Gemini →</a>';
+      return;
+    }
+    if (data.error) {
+      sub.textContent = 'error: ' + data.error;
+      return;
+    }
+
+    sub.textContent = 'last 24h';
+    const quotas = data.data;
+
+    if (quotas.length === 0) {
+      bars.innerHTML = '<p style="font-size:.8rem;color:#718096">No usage data found (Cloud Monitoring).</p>';
+      return;
+    }
+
+    bars.innerHTML = quotas.map(q => `
+      <div class="usage-bar-wrap">
+        <div class="usage-bar-label">
+          <span>${q.label}</span>
+          <span class="usage-pct-right">
+            <strong>${q.usage.toLocaleString()}</strong>
+          </span>
+        </div>
+        <div class="usage-bar-track">
+          <div class="usage-bar-fill" style="width: 100%; opacity: 0.3;"></div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    sub.textContent = 'error: ' + e.message;
+  }
+}
+
 loadLiveUsage();
 loadOllamaUsage();
+loadGeminiUsage();
+loadProxmoxStatus();
+
+// Refresh AI usage bars every 60 seconds
+setInterval(() => {
+  loadLiveUsage();
+  loadOllamaUsage();
+  loadGeminiUsage();
+}, 60_000);
+
+// Refresh Proxmox every 15 seconds to track live migrations
+setInterval(loadProxmoxStatus, 15_000);
 </script>
 
 {% endblock %}
