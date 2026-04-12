@@ -311,6 +311,7 @@ textarea { resize: vertical; }
 .px-column-header.node-blue   { background: #80D2FFCC; border-bottom-color: #80D2FFCC; }
 .px-column-header.node-orange { background: #FFA005CC; border-bottom-color: #FFA005CC; }
 .px-column-header.node-silver { background: #C0C0C0CC; border-bottom-color: #C0C0C0CC; }
+.px-column-header.node-red    { background: #C0392BCC; border-bottom-color: #C0392BCC; }
 
 .px-column-header .px-status.on  { background: rgba(0,0,0,0.25); color: #fff; }
 .px-column-header .px-status.off { background: rgba(0,0,0,0.25); color: #fff; }

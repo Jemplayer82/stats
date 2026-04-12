@@ -33,6 +33,17 @@
   </div>
 </section>
 
+<!-- TrueNAS SCALE -->
+<section class="proxmox-section" id="truenas-section">
+  <div class="px-column" style="border-radius:10px;overflow:hidden">
+    <div class="px-column-header node-red">
+      <span class="px-column-title">🗄️ TrueNAS SCALE</span>
+      <span class="chart-sub" id="truenas-sub" style="color:#fff;opacity:.8">loading…</span>
+    </div>
+    <div style="padding:.75rem" id="truenas-content"></div>
+  </div>
+</section>
+
 <!-- Proxmox Cluster Resources -->
 <section class="proxmox-section">
   <div class="section-header">
@@ -40,15 +51,6 @@
     <span class="chart-sub" id="proxmox-sub">loading…</span>
   </div>
   <div id="proxmox-grid" class="proxmox-columns"></div>
-</section>
-
-<!-- TrueNAS SCALE -->
-<section class="proxmox-section" id="truenas-section">
-  <div class="section-header">
-    <h2>TrueNAS SCALE</h2>
-    <span class="chart-sub" id="truenas-sub">loading…</span>
-  </div>
-  <div id="truenas-content"></div>
 </section>
 
 <script>
