@@ -544,7 +544,12 @@ async function loadTrueNASStatus() {
 
     content.innerHTML = healthHtml + alertsHtml + `
       <div class="tn-bottom-row">
-        <div class="px-node-stats tn-pools-col">${poolsHtml}</div>
+        <div class="tn-spark-col">
+          <div class="tn-spark-wrap">
+            <div class="tn-spark-title">Storage</div>
+            <div class="tn-pools-inner">${poolsHtml}</div>
+          </div>
+        </div>
         ${sparkHtml ? `<div class="tn-spark-col">${sparkHtml}</div>` : ''}
       </div>`;
   } catch (e) {

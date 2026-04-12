@@ -497,3 +497,4 @@ textarea { resize: vertical; }
 .tn-spark-legend { font-weight: 400; font-size: .75rem; display: flex; gap: .6rem; }
 .tn-sparkline   { display: block; border-radius: 4px; }
 .tn-spark-sub   { font-size: .7rem; color: var(--muted); margin-top: .3rem; text-align: right; }
+.tn-pools-inner { display: flex; flex-direction: column; gap: .45rem; margin-top: .4rem; }
