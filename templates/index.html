@@ -43,8 +43,12 @@
   <div id="truenas-section" style="margin-bottom:1rem">
     <div class="px-column" style="border-radius:10px;overflow:hidden">
       <div class="px-column-header node-red">
-        <a href="https://truenas.txferguson.net" target="_blank" class="px-column-title server-link">🗄️ TrueNAS SCALE</a>
-        <span class="chart-sub" id="truenas-sub" style="color:#fff;opacity:.8">loading…</span>
+        <a href="https://truenas.txferguson.net" target="_blank" class="px-column-title server-link">
+          <img src="https://www.osboxes.org/wp-content/uploads/2022/02/truenas-logo.png" class="server-icon"> TrueNAS SCALE
+        </a>
+        <span class="server-header-right" id="truenas-sub">
+          <span class="chart-sub" style="color:#fff;opacity:.7">loading…</span>
+        </span>
       </div>
       <div style="padding:.75rem" id="truenas-content"></div>
     </div>
@@ -213,8 +217,13 @@ async function loadProxmoxStatus() {
       return `
         <div class="px-column">
           <div class="px-column-header node-${nodeName.toLowerCase()}">
-            <a href="https://${nodeName.toLowerCase()}.txferguson.net" target="_blank" class="px-column-title server-link">🖲️ ${nodeName}</a>
-            <span class="px-status ${nodeOnline ? 'on' : 'off'}" style="position:static;border-radius:4px">${info.status || 'unknown'}</span>
+            <a href="https://${nodeName.toLowerCase()}.txferguson.net" target="_blank" class="px-column-title server-link">
+              <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/proxmox-light.webp" class="server-icon"> ${nodeName}
+            </a>
+            <span class="server-header-right">
+              ${nodeOnline && info.uptime ? `<span class="server-uptime">${formatUptime(info.uptime)}</span>` : ''}
+              <span class="px-status ${nodeOnline ? 'on' : 'off'}" style="position:static;border-radius:4px">${info.status || 'unknown'}</span>
+            </span>
           </div>
           ${nodeStatsHtml}
           <div class="px-column-body">${machineCards}</div>
@@ -475,7 +484,7 @@ async function loadTrueNASStatus() {
       return;
     }
 
-    sub.textContent = data.hostname + ' — uptime ' + formatUptime(data.uptime);
+    sub.innerHTML = `<span class="server-uptime">${formatUptime(data.uptime)}</span><span class="px-status on" style="position:static;border-radius:4px">online</span>`;
 
     // Storage health cards
     const healthHtml = `
@@ -553,7 +562,7 @@ async function loadTrueNASStatus() {
         ${sparkHtml ? `<div class="tn-spark-col">${sparkHtml}</div>` : ''}
       </div>`;
   } catch (e) {
-    document.getElementById('truenas-sub').textContent = 'error: ' + e.message;
+    document.getElementById('truenas-sub').innerHTML = `<span class="px-status off" style="position:static;border-radius:4px">error</span>`;
   }
 }
 

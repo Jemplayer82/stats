@@ -324,10 +324,29 @@ textarea { resize: vertical; }
 a.server-link {
   text-decoration: none;
   color: inherit;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
 }
-a.server-link:hover {
-  text-decoration: underline;
-  opacity: .85;
+a.server-link:hover { opacity: .85; }
+
+.server-icon {
+  height: 20px;
+  width: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.server-header-right {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.server-uptime {
+  font-size: .72rem;
+  color: rgba(255,255,255,.7);
+  font-weight: 400;
 }
 
 .px-column-body {
