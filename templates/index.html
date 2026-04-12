@@ -36,7 +36,7 @@
 <!-- Proxmox Cluster Resources -->
 <section class="proxmox-section">
   <div class="section-header">
-    <h2>Proxmox Cluster</h2>
+    <h2>Servers</h2>
     <span class="chart-sub" id="proxmox-sub">loading…</span>
   </div>
   <div id="proxmox-grid" class="proxmox-columns"></div>
@@ -166,6 +166,9 @@ async function loadProxmoxStatus() {
             const cpuPct = Math.round((res.cpu || 0) * 100);
             const icon = res.type === 'qemu' ? '🖥️' : '📦';
             const { inRate, outRate } = calcNetRate(res.vmid, res.netin || 0, res.netout || 0);
+            const memUsed  = res.mem    || 0;
+            const memTotal = res.maxmem || 0;
+            const memPct   = memTotal > 0 ? Math.round(memUsed / memTotal * 100) : null;
             return `
               <div class="px-card ${!isRunning ? 'is-off' : ''}">
                 <div class="px-top">
@@ -176,6 +179,10 @@ async function loadProxmoxStatus() {
                   <div class="px-stat-row">
                     <span class="px-label">CPU</span>
                     <span class="px-value">${isRunning ? cpuPct + '%' : '-'}</span>
+                  </div>
+                  <div class="px-stat-row">
+                    <span class="px-label">RAM</span>
+                    <span class="px-value">${isRunning && memTotal > 0 ? `${formatBytes(memUsed)}/${formatBytes(memTotal)}` : '-'}</span>
                   </div>
                   <div class="px-stat-row">
                     <span class="px-label">Uptime</span>
