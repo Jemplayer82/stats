@@ -276,8 +276,13 @@ def api_proxmox_status():
 # ---------------------------------------------------------------------------
 
 def _truenas_call(host, api_key, method, params=None):
-    """Open a WebSocket to ws://<host>/api/current, authenticate, call one method."""
-    ws = websocket.create_connection(f'ws://{host}/api/current', timeout=10)
+    """Open a WebSocket to wss://<host>/api/current, authenticate, call one method."""
+    import ssl
+    ws = websocket.create_connection(
+        f'wss://{host}/websocket',
+        timeout=10,
+        sslopt={"cert_reqs": ssl.CERT_NONE}
+    )
     try:
         ws.send(json.dumps({"msg": "connect", "version": "1", "support": ["1"]}))
         resp = json.loads(ws.recv())
@@ -310,6 +315,9 @@ def api_truenas_status():
     if not all([host, api_key]):
         return jsonify({'error': ErrorCode.INCOMPLETE_CONFIG}), 200
 
+    # Strip any protocol prefix — we connect via ws://
+    host = re.sub(r'^https?://', '', host).rstrip('/')
+
     try:
         pools   = _truenas_call(host, api_key, 'pool.query')
         alerts  = _truenas_call(host, api_key, 'alert.list')
@@ -323,16 +331,29 @@ def api_truenas_status():
         if a.get('level') in ('CRITICAL', 'WARNING')
     ]
 
-    pool_list = [
-        {
-            'name':      p['name'],
-            'status':    p['status'],
-            'allocated': p.get('allocated', 0),
-            'size':      p.get('size', 0),
-            'free':      p.get('free', 0),
-        }
-        for p in pools
-    ]
+    pool_list = []
+    for p in pools:
+        scan = p.get('scan') or {}
+        pool_list.append({
+            'name':          p['name'],
+            'status':        p['status'],
+            'healthy':       p.get('healthy', True),
+            'warning':       p.get('warning', False),
+            'status_code':   p.get('status_code', ''),
+            'status_detail': p.get('status_detail', ''),
+            'fragmentation': p.get('fragmentation', 0),
+            'allocated':     p.get('allocated', 0),
+            'size':          p.get('size', 0),
+            'free':          p.get('free', 0),
+            'scan': {
+                'function':       scan.get('function', ''),
+                'state':          scan.get('state', ''),
+                'percentage':     round(scan.get('percentage', 0), 1),
+                'errors':         scan.get('errors', 0),
+                'secs_left':      scan.get('total_secs_left'),
+                'end_time':       (scan.get('end_time') or {}).get('$date'),
+            },
+        })
 
     return jsonify({
         'ok':       True,

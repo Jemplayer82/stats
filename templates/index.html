@@ -426,6 +426,45 @@ async function loadTrueNASStatus() {
 
     sub.textContent = data.hostname + ' — uptime ' + formatUptime(data.uptime);
 
+    // Storage health cards
+    const healthHtml = `
+      <div class="truenas-health-grid">
+        ${data.pools.map(p => {
+          const scan = p.scan;
+          const isScanning = scan.state === 'SCANNING';
+          const scanLabel = scan.function === 'RESILVER' ? 'Resilvering' : scan.function === 'SCRUB' ? 'Scrub' : scan.function;
+
+          let scanHtml = '';
+          if (isScanning) {
+            const timeLeft = scan.secs_left ? formatUptime(scan.secs_left) + ' left' : '';
+            scanHtml = `
+              <div class="tn-scan-row">
+                <span class="tn-scan-label">${scanLabel} <span class="tn-scan-pct">${scan.percentage}%</span> <small>${timeLeft}</small></span>
+                <div class="px-node-bar" style="margin-top:.3rem">
+                  <div class="px-node-bar-fill warn" style="width:${Math.min(scan.percentage,100)}%"></div>
+                </div>
+              </div>`;
+          } else if (scan.function) {
+            const lastRun = scan.end_time ? new Date(scan.end_time).toLocaleDateString(undefined, {month:'short',day:'numeric',year:'numeric'}) : 'unknown';
+            scanHtml = `<div class="tn-scan-row"><span class="tn-scan-label">Last ${scanLabel}: ${lastRun} — <span class="${scan.errors > 0 ? 'tn-err' : 'tn-ok'}">${scan.errors} errors</span></span></div>`;
+          }
+
+          return `
+            <div class="tn-health-card ${!p.healthy ? 'tn-unhealthy' : p.warning ? 'tn-warning' : ''}">
+              <div class="tn-health-top">
+                <span class="tn-pool-name">${p.name}</span>
+                <span class="badge ${p.status === 'ONLINE' ? 'badge-online' : 'badge-offline'}">${p.status}</span>
+              </div>
+              ${p.status_detail ? `<div class="tn-detail">${p.status_detail}</div>` : ''}
+              <div class="tn-stats-row">
+                <span class="px-label">Fragmentation</span>
+                <span class="px-value">${p.fragmentation}%</span>
+              </div>
+              ${scanHtml}
+            </div>`;
+        }).join('')}
+      </div>`;
+
     const alertsHtml = data.alerts.length === 0 ? '' : `
       <div class="truenas-alerts">
         ${data.alerts.map(a => `
@@ -450,7 +489,7 @@ async function loadTrueNASStatus() {
         </div>`;
     }).join('');
 
-    content.innerHTML = alertsHtml + `<div class="px-node-stats" style="max-width:600px">${poolsHtml}</div>`;
+    content.innerHTML = healthHtml + alertsHtml + `<div class="px-node-stats" style="max-width:600px;margin-top:1rem">${poolsHtml}</div>`;
   } catch (e) {
     document.getElementById('truenas-sub').textContent = 'error: ' + e.message;
   }

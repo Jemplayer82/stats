@@ -464,3 +464,25 @@ textarea { resize: vertical; }
 /* Pool status badges */
 .badge-online  { background: rgba(16,185,129,.2); color: var(--green); }
 .badge-offline { background: rgba(239,68,68,.2);  color: var(--red); }
+
+/* TrueNAS storage health cards */
+.truenas-health-grid { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+.tn-health-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .9rem 1rem;
+  min-width: 260px;
+  flex: 1;
+}
+.tn-health-card.tn-warning  { border-color: #f59e0b; }
+.tn-health-card.tn-unhealthy { border-color: var(--red); }
+.tn-health-top  { display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem; }
+.tn-pool-name   { font-weight: 700; font-size: .95rem; }
+.tn-detail      { font-size: .75rem; color: #f59e0b; margin-bottom: .5rem; line-height: 1.4; }
+.tn-stats-row   { display: flex; justify-content: space-between; font-size: .8rem; margin-bottom: .5rem; }
+.tn-scan-row    { font-size: .78rem; color: var(--muted); margin-top: .4rem; }
+.tn-scan-label  { display: block; margin-bottom: .2rem; }
+.tn-scan-pct    { color: #f59e0b; font-weight: 600; }
+.tn-ok          { color: var(--green); font-weight: 600; }
+.tn-err         { color: var(--red); font-weight: 600; }
