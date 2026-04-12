@@ -321,6 +321,14 @@ textarea { resize: vertical; }
   font-size: 0.95rem;
   color: var(--text);
 }
+a.server-link {
+  text-decoration: none;
+  color: inherit;
+}
+a.server-link:hover {
+  text-decoration: underline;
+  opacity: .85;
+}
 
 .px-column-body {
   padding: 0.75rem;

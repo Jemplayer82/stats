@@ -43,7 +43,7 @@
   <div id="truenas-section" style="margin-bottom:1rem">
     <div class="px-column" style="border-radius:10px;overflow:hidden">
       <div class="px-column-header node-red">
-        <span class="px-column-title">🗄️ TrueNAS SCALE</span>
+        <a href="https://truenas.txferguson.net" target="_blank" class="px-column-title server-link">🗄️ TrueNAS SCALE</a>
         <span class="chart-sub" id="truenas-sub" style="color:#fff;opacity:.8">loading…</span>
       </div>
       <div style="padding:.75rem" id="truenas-content"></div>
@@ -213,7 +213,7 @@ async function loadProxmoxStatus() {
       return `
         <div class="px-column">
           <div class="px-column-header node-${nodeName.toLowerCase()}">
-            <span class="px-column-title">🖲️ ${nodeName}</span>
+            <a href="https://${nodeName.toLowerCase()}.txferguson.net" target="_blank" class="px-column-title server-link">🖲️ ${nodeName}</a>
             <span class="px-status ${nodeOnline ? 'on' : 'off'}" style="position:static;border-radius:4px">${info.status || 'unknown'}</span>
           </div>
           ${nodeStatsHtml}
