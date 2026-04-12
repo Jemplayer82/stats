@@ -267,6 +267,61 @@ def api_proxmox_status():
         return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
 
 
+@app.route('/api/ceph-status')
+def api_ceph_status():
+    host   = get_config(CONFIG_PROXMOX_HOST, '')
+    token_id = get_config(CONFIG_PROXMOX_TOKEN_ID, '')
+    secret = get_config(CONFIG_PROXMOX_TOKEN_SECRET, '')
+
+    if not all([host, token_id, secret]):
+        return jsonify({'error': ErrorCode.INCOMPLETE_CONFIG}), 200
+
+    if not host.startswith('http'):
+        host = f'https://{host}'
+
+    headers = {
+        'Authorization': f'PVEAPIToken={token_id}={secret}',
+        'Accept': 'application/json'
+    }
+
+    try:
+        r = http.get(f"{host.rstrip('/')}/api2/json/cluster/ceph/status",
+                     headers=headers, timeout=10, verify=False)
+        if not r.ok:
+            return jsonify({'error': ErrorCode.API_ERROR, 'details': r.text}), 200
+
+        data = r.json().get('data', {})
+        pgmap  = data.get('pgmap', {})
+        health = data.get('health', {})
+        osdmap = data.get('osdmap', {})
+
+        checks = []
+        for key, val in (health.get('checks') or {}).items():
+            checks.append({
+                'severity': val.get('severity', ''),
+                'message':  val.get('summary', {}).get('message', key),
+            })
+
+        return jsonify({
+            'ok': True,
+            'health':          health.get('status', 'HEALTH_UNKNOWN'),
+            'checks':          checks,
+            'bytes_used':      pgmap.get('bytes_used', 0),
+            'bytes_total':     pgmap.get('bytes_total', 0),
+            'bytes_avail':     pgmap.get('bytes_avail', 0),
+            'read_bytes_sec':  pgmap.get('read_bytes_sec', 0),
+            'write_bytes_sec': pgmap.get('write_bytes_sec', 0),
+            'read_op_sec':     pgmap.get('read_op_per_sec', 0),
+            'write_op_sec':    pgmap.get('write_op_per_sec', 0),
+            'num_osds':        osdmap.get('num_osds', 0),
+            'num_up_osds':     osdmap.get('num_up_osds', 0),
+            'num_in_osds':     osdmap.get('num_in_osds', 0),
+            'num_pgs':         pgmap.get('num_pgs', 0),
+        })
+    except Exception as e:
+        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
+
+
 
 
 

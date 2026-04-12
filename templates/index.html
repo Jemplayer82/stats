@@ -54,6 +54,21 @@
     </div>
   </div>
 
+  <!-- Ceph -->
+  <div id="ceph-section" style="margin-bottom:1rem">
+    <div class="px-column" style="border-radius:10px;overflow:hidden">
+      <div class="px-column-header node-orange">
+        <a href="https://blue.txferguson.net" target="_blank" class="px-column-title server-link">
+          <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/ceph.webp" class="server-icon"> Ceph
+        </a>
+        <span class="server-header-right" id="ceph-sub">
+          <span class="chart-sub" style="color:#fff;opacity:.7">loading…</span>
+        </span>
+      </div>
+      <div style="padding:.75rem" id="ceph-content"></div>
+    </div>
+  </div>
+
   <!-- Proxmox nodes -->
   <div id="proxmox-grid" class="proxmox-columns"></div>
   <span class="chart-sub" id="proxmox-sub" style="display:none"></span>
@@ -566,10 +581,76 @@ async function loadTrueNASStatus() {
   }
 }
 
+async function loadCephStatus() {
+  const sub     = document.getElementById('ceph-sub');
+  const content = document.getElementById('ceph-content');
+
+  try {
+    const res  = await fetch('/api/ceph-status');
+    const data = await res.json();
+
+    if (data.error) {
+      sub.innerHTML = `<span class="px-status off" style="position:static;border-radius:4px">error</span>`;
+      return;
+    }
+
+    const healthClass = data.health === 'HEALTH_OK' ? 'on' : 'off';
+    const healthLabel = data.health.replace('HEALTH_', '');
+    sub.innerHTML = `<span class="px-status ${healthClass}" style="position:static;border-radius:4px">${healthLabel}</span>`;
+
+    const usedPct  = data.bytes_total > 0 ? Math.round(data.bytes_used / data.bytes_total * 100) : 0;
+    const barClass = usedPct > 85 ? 'danger' : usedPct > 70 ? 'warn' : '';
+
+    const checksHtml = data.checks.length === 0 ? '' : `
+      <div class="truenas-alerts" style="margin-bottom:.75rem">
+        ${data.checks.map(c => `
+          <div class="truenas-alert ${c.severity === 'HEALTH_ERR' ? 'danger' : 'warn'}">
+            <strong>${c.severity.replace('HEALTH_', '')}</strong> ${c.message}
+          </div>`).join('')}
+      </div>`;
+
+    content.innerHTML = checksHtml + `
+      <div class="ceph-grid">
+        <div class="tn-spark-wrap">
+          <div class="tn-spark-title">Storage</div>
+          <div style="margin-top:.5rem">
+            <div class="px-node-stat" style="grid-template-columns:4rem 1fr auto">
+              <span class="px-label">Used</span>
+              <div class="px-node-bar">
+                <div class="px-node-bar-fill ${barClass}" style="width:${usedPct}%"></div>
+              </div>
+              <span class="px-node-pct">${usedPct}% <small>${formatBytes(data.bytes_used)} / ${formatBytes(data.bytes_total)}</small></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tn-spark-wrap">
+          <div class="tn-spark-title">OSDs</div>
+          <div class="ceph-stats">
+            <div class="ceph-stat"><span class="ceph-val">${data.num_up_osds}/${data.num_osds}</span><span class="ceph-lbl">up/total</span></div>
+            <div class="ceph-stat"><span class="ceph-val">${data.num_in_osds}</span><span class="ceph-lbl">in</span></div>
+            <div class="ceph-stat"><span class="ceph-val">${data.num_pgs}</span><span class="ceph-lbl">PGs</span></div>
+          </div>
+        </div>
+
+        <div class="tn-spark-wrap">
+          <div class="tn-spark-title">Throughput</div>
+          <div class="ceph-stats">
+            <div class="ceph-stat"><span class="ceph-val" style="color:#3b82f6">↓ ${formatBytes(data.read_bytes_sec)}/s</span><span class="ceph-lbl">${data.read_op_sec} IOPS</span></div>
+            <div class="ceph-stat"><span class="ceph-val" style="color:#f59e0b">↑ ${formatBytes(data.write_bytes_sec)}/s</span><span class="ceph-lbl">${data.write_op_sec} IOPS</span></div>
+          </div>
+        </div>
+      </div>`;
+  } catch (e) {
+    document.getElementById('ceph-sub').innerHTML = `<span class="px-status off" style="position:static;border-radius:4px">error</span>`;
+  }
+}
+
 loadLiveUsage();
 loadOllamaUsage();
 loadGeminiUsage();
 loadProxmoxStatus();
+loadCephStatus();
 loadTrueNASStatus();
 
 // Refresh AI usage bars every 60 seconds
@@ -581,6 +662,9 @@ setInterval(() => {
 
 // Refresh Proxmox every 15 seconds to track live migrations
 setInterval(loadProxmoxStatus, 15_000);
+
+// Refresh Ceph every 15 seconds
+setInterval(loadCephStatus, 15_000);
 
 // Refresh TrueNAS every 30 seconds
 setInterval(loadTrueNASStatus, 30_000);

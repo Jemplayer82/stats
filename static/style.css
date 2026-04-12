@@ -525,3 +525,11 @@ a.server-link:hover { opacity: .85; }
 .tn-sparkline   { display: block; border-radius: 4px; }
 .tn-spark-sub   { font-size: .7rem; color: var(--muted); margin-top: .3rem; text-align: right; }
 .tn-pools-inner { display: flex; flex-direction: column; gap: .45rem; margin-top: .4rem; }
+
+/* Ceph card */
+.ceph-grid  { display: flex; gap: 1rem; flex-wrap: wrap; }
+.ceph-grid > .tn-spark-wrap { flex: 1; min-width: 160px; }
+.ceph-stats { display: flex; gap: 1.2rem; margin-top: .6rem; flex-wrap: wrap; }
+.ceph-stat  { display: flex; flex-direction: column; gap: .1rem; }
+.ceph-val   { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+.ceph-lbl   { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
