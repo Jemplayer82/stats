@@ -410,6 +410,53 @@ async function loadGeminiUsage() {
   }
 }
 
+function buildSparkline(net) {
+  const W = 280, H = 80, pad = 4;
+  const rx = net.rx, tx = net.tx;
+  const allVals = [...rx, ...tx].filter(v => v != null);
+  if (!allVals.length) return '';
+  const maxVal = Math.max(...allVals) || 1;
+
+  function toPath(vals, filled) {
+    const pts = vals.map((v, i) => {
+      const x = pad + (i / (vals.length - 1)) * (W - pad * 2);
+      const y = H - pad - ((v || 0) / maxVal) * (H - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    if (filled) {
+      const first = `${pad},${H - pad}`;
+      const last  = `${(W - pad).toFixed(1)},${H - pad}`;
+      return `M${first} L${pts.join(' L')} L${last} Z`;
+    }
+    return `M${pts.join(' L')}`;
+  }
+
+  const currentRx = rx[rx.length - 1] || 0;
+  const currentTx = tx[tx.length - 1] || 0;
+
+  return `
+    <div class="tn-spark-wrap">
+      <div class="tn-spark-title">${net.interface} <span class="tn-spark-legend"><span style="color:#3b82f6">↓ ${formatRate(currentRx)}</span> <span style="color:#f59e0b">↑ ${formatRate(currentTx)}</span></span></div>
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" class="tn-sparkline">
+        <defs>
+          <linearGradient id="rxGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.05"/>
+          </linearGradient>
+          <linearGradient id="txGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.05"/>
+          </linearGradient>
+        </defs>
+        <path d="${toPath(rx, true)}"  fill="url(#rxGrad)" stroke="none"/>
+        <path d="${toPath(tx, true)}"  fill="url(#txGrad)" stroke="none"/>
+        <path d="${toPath(rx, false)}" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
+        <path d="${toPath(tx, false)}" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+      </svg>
+      <div class="tn-spark-sub">Last hour — 1 min resolution</div>
+    </div>`;
+}
+
 async function loadTrueNASStatus() {
   const sub     = document.getElementById('truenas-sub');
   const content = document.getElementById('truenas-content');
@@ -493,7 +540,13 @@ async function loadTrueNASStatus() {
         </div>`;
     }).join('');
 
-    content.innerHTML = healthHtml + alertsHtml + `<div class="px-node-stats" style="max-width:600px;margin-top:1rem">${poolsHtml}</div>`;
+    const sparkHtml = data.network ? buildSparkline(data.network) : '';
+
+    content.innerHTML = healthHtml + alertsHtml + `
+      <div class="tn-bottom-row">
+        <div class="px-node-stats tn-pools-col">${poolsHtml}</div>
+        ${sparkHtml ? `<div class="tn-spark-col">${sparkHtml}</div>` : ''}
+      </div>`;
   } catch (e) {
     document.getElementById('truenas-sub').textContent = 'error: ' + e.message;
   }

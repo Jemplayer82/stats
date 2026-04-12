@@ -355,10 +355,27 @@ def api_truenas_status():
             },
         })
 
+    # Network sparkline — last hour of bond1, downsampled to ~60 pts
+    network = None
+    try:
+        net_raw = _truenas_call(host, api_key, 'reporting.get_data',
+                                [[{'name': 'interface', 'identifier': 'bond1'}],
+                                 {'unit': 'HOUR', 'page': 1}])
+        pts = (net_raw[0].get('data') or []) if net_raw else []
+        sampled = pts[::60] if pts else []
+        network = {
+            'interface': 'bond1',
+            'rx': [round(p[1], 2) for p in sampled if len(p) > 1],
+            'tx': [round(p[2], 2) for p in sampled if len(p) > 2],
+        }
+    except Exception:
+        pass
+
     return jsonify({
         'ok':       True,
         'pools':    pool_list,
         'alerts':   active_alerts,
+        'network':  network,
         'uptime':   sysinfo.get('uptime_seconds', 0),
         'hostname': sysinfo.get('hostname', ''),
         'version':  sysinfo.get('version', ''),
