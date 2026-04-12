@@ -42,6 +42,15 @@
   <div id="proxmox-grid" class="proxmox-columns"></div>
 </section>
 
+<!-- TrueNAS SCALE -->
+<section class="proxmox-section" id="truenas-section">
+  <div class="section-header">
+    <h2>TrueNAS SCALE</h2>
+    <span class="chart-sub" id="truenas-sub">loading…</span>
+  </div>
+  <div id="truenas-content"></div>
+</section>
+
 <script>
 // Formatting helpers
 function formatUptime(seconds) {
@@ -397,10 +406,61 @@ async function loadGeminiUsage() {
   }
 }
 
+async function loadTrueNASStatus() {
+  const sub     = document.getElementById('truenas-sub');
+  const content = document.getElementById('truenas-content');
+
+  try {
+    const res  = await fetch('/api/truenas-status');
+    const data = await res.json();
+
+    if (data.error === 'incomplete_config') {
+      sub.textContent   = 'not configured — add in Settings';
+      content.innerHTML = '<a href="/settings" class="setup-link">Configure TrueNAS →</a>';
+      return;
+    }
+    if (data.error) {
+      sub.textContent = 'error: ' + data.error;
+      return;
+    }
+
+    sub.textContent = data.hostname + ' — uptime ' + formatUptime(data.uptime);
+
+    const alertsHtml = data.alerts.length === 0 ? '' : `
+      <div class="truenas-alerts">
+        ${data.alerts.map(a => `
+          <div class="truenas-alert ${a.level === 'CRITICAL' ? 'danger' : 'warn'}">
+            <strong>${a.level}</strong> ${a.text}
+          </div>`).join('')}
+      </div>`;
+
+    const poolsHtml = data.pools.map(p => {
+      const usedPct = p.size > 0 ? Math.round(p.allocated / p.size * 100) : 0;
+      return `
+        <div class="px-node-stat" style="grid-template-columns: 6rem 1fr auto">
+          <span class="px-label">${p.name}</span>
+          <div class="px-node-bar">
+            <div class="px-node-bar-fill ${usedPct > 85 ? 'danger' : usedPct > 60 ? 'warn' : ''}"
+                 style="width:${usedPct}%"></div>
+          </div>
+          <span class="px-node-pct">${usedPct}%
+            <small>${formatBytes(p.allocated)} / ${formatBytes(p.size)}</small>
+            &nbsp;<span class="badge ${p.status === 'ONLINE' ? 'badge-online' : 'badge-offline'}">${p.status}</span>
+          </span>
+        </div>`;
+    }).join('');
+
+    content.innerHTML = alertsHtml + `<div class="px-node-stats" style="max-width:600px">${poolsHtml}</div>`;
+  } catch (e) {
+    document.getElementById('truenas-sub').textContent = 'error: ' + e.message;
+  }
+}
+
 loadLiveUsage();
 loadOllamaUsage();
 loadGeminiUsage();
 loadProxmoxStatus();
+loadTrueNASStatus();
 
 // Refresh AI usage bars every 60 seconds
 setInterval(() => {
@@ -411,6 +471,9 @@ setInterval(() => {
 
 // Refresh Proxmox every 15 seconds to track live migrations
 setInterval(loadProxmoxStatus, 15_000);
+
+// Refresh TrueNAS every 30 seconds
+setInterval(loadTrueNASStatus, 30_000);
 </script>
 
 {% endblock %}

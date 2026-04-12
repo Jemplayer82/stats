@@ -454,3 +454,13 @@ textarea { resize: vertical; }
   background: rgba(239, 68, 68, 0.2);
   color: var(--red);
 }
+
+/* TrueNAS alerts */
+.truenas-alerts { margin-bottom: 1rem; display: flex; flex-direction: column; gap: .4rem; max-width: 600px; }
+.truenas-alert  { padding: .4rem .75rem; border-radius: 6px; font-size: .82rem; }
+.truenas-alert.danger { background: rgba(239,68,68,.1); border-left: 3px solid var(--red); color: var(--text); }
+.truenas-alert.warn   { background: rgba(245,158,11,.1); border-left: 3px solid #f59e0b; color: var(--text); }
+
+/* Pool status badges */
+.badge-online  { background: rgba(16,185,129,.2); color: var(--green); }
+.badge-offline { background: rgba(239,68,68,.2);  color: var(--red); }

@@ -5,6 +5,7 @@ from google.cloud import monitoring_v3
 from google.oauth2 import service_account
 import requests as http
 import urllib3
+import websocket
 import json
 import time
 import re
@@ -30,6 +31,8 @@ CONFIG_PROXMOX_HOST = 'proxmox_host'
 CONFIG_PROXMOX_TOKEN_ID = 'proxmox_token_id'
 CONFIG_PROXMOX_TOKEN_SECRET = 'proxmox_token_secret'
 CONFIG_GEMINI_SERVICE_ACCOUNT = 'gemini_service_account'
+CONFIG_TRUENAS_HOST = 'truenas_host'
+CONFIG_TRUENAS_API_KEY = 'truenas_api_key'
 
 # Error codes
 class ErrorCode:
@@ -111,6 +114,11 @@ def settings():
         if gemini_json:
             set_config(CONFIG_GEMINI_SERVICE_ACCOUNT, gemini_json)
 
+        truenas_host    = request.form.get(CONFIG_TRUENAS_HOST, '').strip()
+        truenas_api_key = request.form.get(CONFIG_TRUENAS_API_KEY, '').strip()
+        if truenas_host:    set_config(CONFIG_TRUENAS_HOST, truenas_host)
+        if truenas_api_key: set_config(CONFIG_TRUENAS_API_KEY, truenas_api_key)
+
         return redirect(url_for('settings'))
 
     return render_template('settings.html',
@@ -119,7 +127,9 @@ def settings():
                            proxmox_host=get_config(CONFIG_PROXMOX_HOST, ''),
                            proxmox_token_id=get_config(CONFIG_PROXMOX_TOKEN_ID, ''),
                            has_proxmox_secret=bool(get_config(CONFIG_PROXMOX_TOKEN_SECRET, '')),
-                           has_gemini_config=bool(get_config(CONFIG_GEMINI_SERVICE_ACCOUNT, '')))
+                           has_gemini_config=bool(get_config(CONFIG_GEMINI_SERVICE_ACCOUNT, '')),
+                           truenas_host=get_config(CONFIG_TRUENAS_HOST, ''),
+                           has_truenas_api_key=bool(get_config(CONFIG_TRUENAS_API_KEY, '')))
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +269,79 @@ def api_proxmox_status():
 
 
 
+
+
+# ---------------------------------------------------------------------------
+# TrueNAS SCALE WebSocket helper + route
+# ---------------------------------------------------------------------------
+
+def _truenas_call(host, api_key, method, params=None):
+    """Open a WebSocket to ws://<host>/api/current, authenticate, call one method."""
+    ws = websocket.create_connection(f'ws://{host}/api/current', timeout=10)
+    try:
+        ws.send(json.dumps({"msg": "connect", "version": "1", "support": ["1"]}))
+        resp = json.loads(ws.recv())
+        if resp.get("msg") != "connected":
+            raise RuntimeError(f"Handshake failed: {resp}")
+
+        ws.send(json.dumps({"id": "auth", "msg": "method",
+                            "method": "auth.login_with_api_key",
+                            "params": [api_key]}))
+        resp = json.loads(ws.recv())
+        if not resp.get("result"):
+            raise RuntimeError("Authentication failed")
+
+        ws.send(json.dumps({"id": "call", "msg": "method",
+                            "method": method,
+                            "params": params or []}))
+        resp = json.loads(ws.recv())
+        if "error" in resp:
+            raise RuntimeError(f"RPC error: {resp['error']}")
+        return resp["result"]
+    finally:
+        ws.close()
+
+
+@app.route('/api/truenas-status')
+def api_truenas_status():
+    host    = get_config(CONFIG_TRUENAS_HOST, '')
+    api_key = get_config(CONFIG_TRUENAS_API_KEY, '')
+
+    if not all([host, api_key]):
+        return jsonify({'error': ErrorCode.INCOMPLETE_CONFIG}), 200
+
+    try:
+        pools   = _truenas_call(host, api_key, 'pool.query')
+        alerts  = _truenas_call(host, api_key, 'alert.list')
+        sysinfo = _truenas_call(host, api_key, 'system.info')
+    except Exception as e:
+        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
+
+    active_alerts = [
+        {'level': a['level'], 'text': a.get('formatted', a.get('text', ''))}
+        for a in alerts
+        if a.get('level') in ('CRITICAL', 'WARNING')
+    ]
+
+    pool_list = [
+        {
+            'name':      p['name'],
+            'status':    p['status'],
+            'allocated': p.get('allocated', 0),
+            'size':      p.get('size', 0),
+            'free':      p.get('free', 0),
+        }
+        for p in pools
+    ]
+
+    return jsonify({
+        'ok':       True,
+        'pools':    pool_list,
+        'alerts':   active_alerts,
+        'uptime':   sysinfo.get('uptime_seconds', 0),
+        'hostname': sysinfo.get('hostname', ''),
+        'version':  sysinfo.get('version', ''),
+    })
 
 
 # ---------------------------------------------------------------------------

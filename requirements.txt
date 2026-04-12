@@ -4,3 +4,4 @@ requests==2.32.3
 beautifulsoup4==4.12.3
 google-cloud-monitoring==2.27.0
 google-auth==2.38.0
+websocket-client==1.8.0

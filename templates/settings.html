@@ -55,6 +55,23 @@
               placeholder="{% if has_gemini_config %}saved — paste to replace{% else %}{ &quot;type&quot;: &quot;service_account&quot;, ... }{% endif %}"></textarea>
   </label>
 
+  <hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+  <h3>TrueNAS SCALE</h3>
+
+  <label>Host (IP or Domain)
+    <input type="text" name="truenas_host" value="{{ truenas_host }}" placeholder="192.168.1.20" />
+    <span class="hint">IP or hostname only — no protocol or port. Connects via <code>ws://host/api/current</code>.</span>
+  </label>
+
+  <label>API Key
+    <input type="password" name="truenas_api_key"
+           placeholder="{% if has_truenas_api_key %}saved — paste to replace{% else %}paste your TrueNAS API key{% endif %}" />
+    <span class="hint">
+      Generate in TrueNAS: <strong>Credentials → API Keys → Add</strong>. Leave blank to keep existing.
+    </span>
+  </label>
+
   <div class="form-actions">
     <a href="{{ url_for('index') }}" class="btn-cancel">Cancel</a>
     <button type="submit" class="btn-submit">Save</button>
