@@ -285,11 +285,17 @@ def api_proxmox_status():
                     if name and name not in seen:
                         seen[name] = fs
 
-                total_used  = sum(f.get('used-bytes',  0) for f in seen.values())
-                total_bytes = sum(f.get('total-bytes', 0) for f in seen.values())
-                if total_bytes > 0:
-                    res['agent_disk_used']  = total_used
-                    res['agent_disk_total'] = total_bytes
+                disks = [
+                    {
+                        'label': f.get('mountpoint', f.get('name', '')),
+                        'used':  f.get('used-bytes',  0),
+                        'total': f.get('total-bytes', 0),
+                    }
+                    for f in seen.values()
+                    if f.get('total-bytes', 0) > 0
+                ]
+                if disks:
+                    res['agent_disks'] = disks
             except Exception:
                 pass
 

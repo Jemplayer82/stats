@@ -201,18 +201,27 @@ async function loadProxmoxStatus() {
             const memUsed   = res.mem     || 0;
             const memTotal  = res.maxmem  || 0;
             const memPct    = memTotal  > 0 ? Math.round(memUsed  / memTotal  * 100) : null;
-            // LXC: use disk/maxdisk directly. QEMU: use guest agent data if available
-            const diskUsed  = res.type === 'qemu'
-                                ? (res.agent_disk_used  ?? null)
-                                : (res.disk    || 0);
-            const diskTotal = res.type === 'qemu'
-                                ? (res.agent_disk_total ?? res.maxdisk ?? 0)
-                                : (res.maxdisk || 0);
-            const diskPct   = (diskUsed !== null && diskTotal > 0)
-                                ? Math.round(diskUsed / diskTotal * 100) : null;
-            const diskSub   = diskPct !== null
-                                ? formatBytes(diskUsed) + '/' + formatBytes(diskTotal)
-                                : (diskTotal > 0 ? formatBytes(diskTotal) : null);
+            // Build disk bars: one per device for QEMU (guest agent), single bar for LXC
+            const agentDisks = res.agent_disks || null;
+            const lxcDiskUsed  = res.disk    || 0;
+            const lxcDiskTotal = res.maxdisk || 0;
+            const diskBarsHtml = (() => {
+              if (res.type === 'qemu') {
+                if (!agentDisks || !isRunning) {
+                  const sz = res.maxdisk > 0 ? formatBytes(res.maxdisk) : null;
+                  return sz ? bar(null, 'Disk', sz) : '';
+                }
+                return agentDisks.map(d => {
+                  const pct = d.total > 0 ? Math.round(d.used / d.total * 100) : null;
+                  const lbl = d.label.length > 10 ? d.label.slice(-10) : d.label;
+                  return bar(pct, lbl, formatBytes(d.used) + '/' + formatBytes(d.total));
+                }).join('');
+              } else {
+                const pct = lxcDiskTotal > 0 ? Math.round(lxcDiskUsed / lxcDiskTotal * 100) : null;
+                const sub = lxcDiskTotal > 0 ? formatBytes(lxcDiskUsed) + '/' + formatBytes(lxcDiskTotal) : null;
+                return sub ? bar(pct, 'Disk', sub) : '';
+              }
+            })();
 
             function bar(pct, label, sub) {
               if (!isRunning || pct === null) return `
@@ -239,7 +248,7 @@ async function loadProxmoxStatus() {
                 <div class="px-stats">
                   ${bar(cpuPct, 'CPU')}
                   ${bar(memPct,  'RAM',  memTotal  > 0 ? formatBytes(memUsed)  + '/' + formatBytes(memTotal)  : null)}
-                  ${diskSub ? bar(diskPct, 'Disk', diskSub) : ''}
+                  ${diskBarsHtml}
                   <div class="px-stat-row" style="margin-top:.25rem">
                     <span class="px-label">Uptime</span>
                     <span class="px-value">${formatUptime(res.uptime)}</span>
