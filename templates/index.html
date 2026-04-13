@@ -203,14 +203,19 @@ async function loadProxmoxStatus() {
             const memPct    = memTotal  > 0 ? Math.round(memUsed  / memTotal  * 100) : null;
             const diskUsed  = res.disk    || 0;
             const diskTotal = res.maxdisk || 0;
-            const diskPct   = diskTotal > 0 ? Math.round(diskUsed / diskTotal * 100) : null;
+            // QEMU VMs always report disk=0; only LXC containers have real used values
+            const diskPct   = (res.type === 'lxc' && diskTotal > 0)
+                                ? Math.round(diskUsed / diskTotal * 100) : null;
+            const diskSub   = diskPct !== null
+                                ? formatBytes(diskUsed) + '/' + formatBytes(diskTotal)
+                                : (diskTotal > 0 ? formatBytes(diskTotal) : null);
 
             function bar(pct, label, sub) {
               if (!isRunning || pct === null) return `
                 <div class="px-vm-bar-row">
                   <span class="px-label">${label}</span>
                   <div class="px-node-bar" style="flex:1"><div class="px-node-bar-fill" style="width:0%"></div></div>
-                  <span class="px-vm-pct">-</span>
+                  <span class="px-vm-pct">${sub || '-'}</span>
                 </div>`;
               const cls = pct > 85 ? 'danger' : pct > 60 ? 'warn' : '';
               return `
@@ -230,7 +235,7 @@ async function loadProxmoxStatus() {
                 <div class="px-stats">
                   ${bar(cpuPct, 'CPU')}
                   ${bar(memPct,  'RAM',  memTotal  > 0 ? formatBytes(memUsed)  + '/' + formatBytes(memTotal)  : null)}
-                  ${bar(diskPct, 'Disk', diskTotal > 0 ? formatBytes(diskUsed) + '/' + formatBytes(diskTotal) : null)}
+                  ${diskSub ? bar(diskPct, 'Disk', diskSub) : ''}
                   <div class="px-stat-row" style="margin-top:.25rem">
                     <span class="px-label">Uptime</span>
                     <span class="px-value">${formatUptime(res.uptime)}</span>
