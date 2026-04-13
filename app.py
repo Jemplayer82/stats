@@ -275,15 +275,30 @@ def api_proxmox_status():
                     continue
                 items = ar.json().get('data', {}).get('result') or []
 
-                # Deduplicate by device name, skip system fs types
-                seen = {}
-                for fs in items:
-                    fs_type = fs.get('type', '').lower()
-                    if fs_type in SKIP_FS_TYPES:
-                        continue
-                    name = fs.get('name', '')
-                    if name and name not in seen:
-                        seen[name] = fs
+                # Detect Windows by presence of drive-letter mountpoints
+                is_windows = any(':\\' in (f.get('mountpoint') or '') for f in items)
+
+                if is_windows:
+                    # Windows: one entry per drive letter (C:\, D:\, etc.)
+                    seen = {}
+                    for fs in items:
+                        mp = fs.get('mountpoint', '')
+                        if len(mp) == 3 and mp[1:] == ':\\':  # e.g. C:\
+                            seen[mp] = fs
+                else:
+                    # Linux: prefer '/', fall back to largest writable partition
+                    seen = {}
+                    candidates = [f for f in items
+                                  if f.get('type', '').lower() not in SKIP_FS_TYPES
+                                  and f.get('total-bytes', 0) > 0]
+                    root = next((f for f in candidates if f.get('mountpoint') == '/'), None)
+                    if root:
+                        seen['/'] = root
+                    elif candidates:
+                        largest = max(candidates, key=lambda f: f.get('total-bytes', 0))
+                        largest = dict(largest)
+                        largest['mountpoint'] = 'data'
+                        seen['data'] = largest
 
                 disks = [
                     {
