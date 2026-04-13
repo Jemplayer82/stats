@@ -454,6 +454,22 @@ a.server-link:hover { opacity: .85; }
   margin-bottom: 0.5rem;
   font-size: 0.8rem;
 }
+.px-vm-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.75rem;
+}
+.px-vm-bar-row .px-label { width: 2.2rem; flex-shrink: 0; }
+.px-vm-pct {
+  width: 6rem;
+  text-align: right;
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .px-label {
   color: var(--muted);
 }

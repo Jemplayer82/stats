@@ -195,12 +195,32 @@ async function loadProxmoxStatus() {
         ? '<div class="px-empty">No VMs or containers</div>'
         : sorted.map(res => {
             const isRunning = res.status === 'running';
-            const cpuPct = Math.round((res.cpu || 0) * 100);
-            const icon = res.type === 'qemu' ? '🖥️' : '📦';
+            const cpuPct    = Math.round((res.cpu || 0) * 100);
+            const icon      = res.type === 'qemu' ? '🖥️' : '📦';
             const { inRate, outRate } = calcNetRate(res.vmid, res.netin || 0, res.netout || 0);
-            const memUsed  = res.mem    || 0;
-            const memTotal = res.maxmem || 0;
-            const memPct   = memTotal > 0 ? Math.round(memUsed / memTotal * 100) : null;
+            const memUsed   = res.mem     || 0;
+            const memTotal  = res.maxmem  || 0;
+            const memPct    = memTotal  > 0 ? Math.round(memUsed  / memTotal  * 100) : null;
+            const diskUsed  = res.disk    || 0;
+            const diskTotal = res.maxdisk || 0;
+            const diskPct   = diskTotal > 0 ? Math.round(diskUsed / diskTotal * 100) : null;
+
+            function bar(pct, label, sub) {
+              if (!isRunning || pct === null) return `
+                <div class="px-vm-bar-row">
+                  <span class="px-label">${label}</span>
+                  <div class="px-node-bar" style="flex:1"><div class="px-node-bar-fill" style="width:0%"></div></div>
+                  <span class="px-vm-pct">-</span>
+                </div>`;
+              const cls = pct > 85 ? 'danger' : pct > 60 ? 'warn' : '';
+              return `
+                <div class="px-vm-bar-row">
+                  <span class="px-label">${label}</span>
+                  <div class="px-node-bar" style="flex:1"><div class="px-node-bar-fill ${cls}" style="width:${pct}%"></div></div>
+                  <span class="px-vm-pct">${sub || pct + '%'}</span>
+                </div>`;
+            }
+
             return `
               <div class="px-card ${!isRunning ? 'is-off' : ''}">
                 <div class="px-top">
@@ -208,20 +228,15 @@ async function loadProxmoxStatus() {
                 </div>
                 <div class="px-name">${res.name || ''} <small>#${res.vmid}</small></div>
                 <div class="px-stats">
-                  <div class="px-stat-row">
-                    <span class="px-label">CPU</span>
-                    <span class="px-value">${isRunning ? cpuPct + '%' : '-'}</span>
-                  </div>
-                  <div class="px-stat-row">
-                    <span class="px-label">RAM</span>
-                    <span class="px-value">${isRunning && memTotal > 0 ? `${formatBytes(memUsed)}/${formatBytes(memTotal)}` : '-'}</span>
-                  </div>
-                  <div class="px-stat-row">
+                  ${bar(cpuPct, 'CPU')}
+                  ${bar(memPct,  'RAM',  memTotal  > 0 ? formatBytes(memUsed)  + '/' + formatBytes(memTotal)  : null)}
+                  ${bar(diskPct, 'Disk', diskTotal > 0 ? formatBytes(diskUsed) + '/' + formatBytes(diskTotal) : null)}
+                  <div class="px-stat-row" style="margin-top:.25rem">
                     <span class="px-label">Uptime</span>
                     <span class="px-value">${formatUptime(res.uptime)}</span>
                   </div>
                   <div class="px-stat-row">
-                    <span class="px-label">Network</span>
+                    <span class="px-label">Net</span>
                     <span class="px-value">↓ ${isRunning ? formatRate(inRate) : '-'} / ↑ ${isRunning ? formatRate(outRate) : '-'}</span>
                   </div>
                 </div>
