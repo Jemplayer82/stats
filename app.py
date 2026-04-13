@@ -262,6 +262,37 @@ def api_proxmox_status():
             if res.get('type') == 'node' and res['node'] in node_stats:
                 res.update(node_stats[res['node']])
 
+        # Enrich running QEMU VMs with disk usage via guest agent
+        SKIP_FS_TYPES = {'vfat', 'erofs', 'tmpfs', 'devtmpfs', 'squashfs', 'iso9660', 'zram'}
+        for res in resources:
+            if res.get('type') != 'qemu' or res.get('status') != 'running':
+                continue
+            try:
+                ar = http.get(
+                    f"{host.rstrip('/')}/api2/json/nodes/{res['node']}/qemu/{res['vmid']}/agent/get-fsinfo",
+                    headers=headers, timeout=5, verify=False)
+                if not ar.ok:
+                    continue
+                items = ar.json().get('data', {}).get('result') or []
+
+                # Deduplicate by device name, skip system fs types
+                seen = {}
+                for fs in items:
+                    fs_type = fs.get('type', '').lower()
+                    if fs_type in SKIP_FS_TYPES:
+                        continue
+                    name = fs.get('name', '')
+                    if name and name not in seen:
+                        seen[name] = fs
+
+                total_used  = sum(f.get('used-bytes',  0) for f in seen.values())
+                total_bytes = sum(f.get('total-bytes', 0) for f in seen.values())
+                if total_bytes > 0:
+                    res['agent_disk_used']  = total_used
+                    res['agent_disk_total'] = total_bytes
+            except Exception:
+                pass
+
         return jsonify({'ok': True, 'resources': resources})
     except Exception as e:
         return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200

@@ -201,10 +201,14 @@ async function loadProxmoxStatus() {
             const memUsed   = res.mem     || 0;
             const memTotal  = res.maxmem  || 0;
             const memPct    = memTotal  > 0 ? Math.round(memUsed  / memTotal  * 100) : null;
-            const diskUsed  = res.disk    || 0;
-            const diskTotal = res.maxdisk || 0;
-            // QEMU VMs always report disk=0; only LXC containers have real used values
-            const diskPct   = (res.type === 'lxc' && diskTotal > 0)
+            // LXC: use disk/maxdisk directly. QEMU: use guest agent data if available
+            const diskUsed  = res.type === 'qemu'
+                                ? (res.agent_disk_used  ?? null)
+                                : (res.disk    || 0);
+            const diskTotal = res.type === 'qemu'
+                                ? (res.agent_disk_total ?? res.maxdisk ?? 0)
+                                : (res.maxdisk || 0);
+            const diskPct   = (diskUsed !== null && diskTotal > 0)
                                 ? Math.round(diskUsed / diskTotal * 100) : null;
             const diskSub   = diskPct !== null
                                 ? formatBytes(diskUsed) + '/' + formatBytes(diskTotal)
