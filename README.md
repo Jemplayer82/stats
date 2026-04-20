@@ -1,5 +1,10 @@
 # Stats Dashboard
 
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.0-000000?style=flat&logo=flask&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat&logo=docker&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-database-003B57?style=flat&logo=sqlite&logoColor=white)
+
 A self-hosted web dashboard that aggregates usage and health metrics from multiple AI services and infrastructure tools into a single view.
 
 ## What It Does
@@ -8,12 +13,12 @@ Displays real-time data from:
 
 | Service | Data Shown |
 |---------|-----------|
-| **Claude.ai** | Usage quotas and limits |
-| **Ollama.com** | Bandwidth and resource utilization |
-| **Google Gemini** | API request counts via Cloud Monitoring |
-| **Proxmox** | VM/container status, CPU, memory, disk |
-| **Ceph** | Cluster health, capacity, OSD status, throughput |
-| **TrueNAS SCALE** | Pool health, alerts, network traffic |
+| ![Claude](https://img.shields.io/badge/Claude.ai-CC785C?style=flat&logo=anthropic&logoColor=white) | Usage quotas and limits |
+| ![Ollama](https://img.shields.io/badge/Ollama.com-000000?style=flat&logoColor=white) | Bandwidth and resource utilization |
+| ![Gemini](https://img.shields.io/badge/Google_Gemini-8E75B2?style=flat&logo=google&logoColor=white) | API request counts via Cloud Monitoring |
+| ![Proxmox](https://img.shields.io/badge/Proxmox-E57000?style=flat&logo=proxmox&logoColor=white) | VM/container status, CPU, memory, disk |
+| ![Ceph](https://img.shields.io/badge/Ceph-EF5C55?style=flat&logo=ceph&logoColor=white) | Cluster health, capacity, OSD status, throughput |
+| ![TrueNAS](https://img.shields.io/badge/TrueNAS_SCALE-0095D5?style=flat&logo=truenas&logoColor=white) | Pool health, alerts, network traffic |
 
 Credentials are stored locally in a SQLite database and configured through the built-in settings page.
 
