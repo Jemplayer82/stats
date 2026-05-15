@@ -5,7 +5,6 @@ from google.cloud import monitoring_v3
 from google.oauth2 import service_account
 import requests as http
 import urllib3
-import websocket
 import json
 import os
 import time
@@ -380,39 +379,21 @@ def api_ceph_status():
 
 
 # ---------------------------------------------------------------------------
-# TrueNAS SCALE WebSocket helper + route
+# TrueNAS SCALE REST helper + route
 # ---------------------------------------------------------------------------
 
-def _truenas_call(host, api_key, method, params=None):
-    """Open a WebSocket to wss://<host>/api/current, authenticate, call one method."""
-    import ssl
-    ws = websocket.create_connection(
-        f'wss://{host}/websocket',
+def _truenas_api(host, api_key, path, method='GET', body=None):
+    """REST request to TrueNAS API v2.0."""
+    resp = http.request(
+        method,
+        f'https://{host}/api/v2.0/{path}',
+        headers={'Authorization': f'Bearer {api_key}'},
+        json=body,
         timeout=10,
-        sslopt={"cert_reqs": ssl.CERT_NONE}
+        verify=False,
     )
-    try:
-        ws.send(json.dumps({"msg": "connect", "version": "1", "support": ["1"]}))
-        resp = json.loads(ws.recv())
-        if resp.get("msg") != "connected":
-            raise RuntimeError(f"Handshake failed: {resp}")
-
-        ws.send(json.dumps({"id": "auth", "msg": "method",
-                            "method": "auth.login_with_api_key",
-                            "params": [api_key]}))
-        resp = json.loads(ws.recv())
-        if not resp.get("result"):
-            raise RuntimeError("Authentication failed")
-
-        ws.send(json.dumps({"id": "call", "msg": "method",
-                            "method": method,
-                            "params": params or []}))
-        resp = json.loads(ws.recv())
-        if "error" in resp:
-            raise RuntimeError(f"RPC error: {resp['error']}")
-        return resp["result"]
-    finally:
-        ws.close()
+    resp.raise_for_status()
+    return resp.json()
 
 
 @app.route('/api/truenas-status')
@@ -423,13 +404,13 @@ def api_truenas_status():
     if not all([host, api_key]):
         return jsonify({'error': ErrorCode.INCOMPLETE_CONFIG}), 200
 
-    # Strip any protocol prefix — we connect via ws://
+    # Strip any protocol prefix
     host = re.sub(r'^https?://', '', host).rstrip('/')
 
     try:
-        pools   = _truenas_call(host, api_key, 'pool.query')
-        alerts  = _truenas_call(host, api_key, 'alert.list')
-        sysinfo = _truenas_call(host, api_key, 'system.info')
+        pools   = _truenas_api(host, api_key, 'pool')
+        alerts  = _truenas_api(host, api_key, 'alert/list')
+        sysinfo = _truenas_api(host, api_key, 'system/info')
     except Exception as e:
         return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
 
@@ -466,9 +447,9 @@ def api_truenas_status():
     # Network sparkline — last hour of bond1, downsampled to ~60 pts
     network = None
     try:
-        net_raw = _truenas_call(host, api_key, 'reporting.get_data',
-                                [[{'name': 'interface', 'identifier': 'bond1'}],
-                                 {'unit': 'HOUR', 'page': 1}])
+        net_raw = _truenas_api(host, api_key, 'reporting/get_data', method='POST',
+                               body=[[{'name': 'interface', 'identifier': 'bond1'}],
+                                     {'unit': 'HOUR', 'page': 1}])
         pts = (net_raw[0].get('data') or []) if net_raw else []
         sampled = pts[::60] if pts else []
         network = {
