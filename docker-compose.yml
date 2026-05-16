@@ -1,7 +1,6 @@
 services:
   stats:
-    build: .
-    image: stats:latest
+    image: ghcr.io/jemplayer82/stats:latest
     container_name: stats
     ports:
       - "5000:5000"
