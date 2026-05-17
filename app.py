@@ -553,8 +553,9 @@ OLLAMA_COM_HEADERS = {
 
 
 def _ollama_session_headers(cookie_val):
-    return {**OLLAMA_COM_HEADERS,
-            'cookie': f'__Secure-session={cookie_val}'}
+    # Accept either a full "name=value" string or a bare value (legacy)
+    cookie_str = cookie_val if '=' in cookie_val else f'__Secure-session={cookie_val}'
+    return {**OLLAMA_COM_HEADERS, 'cookie': cookie_str}
 
 
 @app.route('/api/ollama-com-usage')

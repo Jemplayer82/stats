@@ -17,10 +17,14 @@
 
   <label>Ollama.com Session Cookie
     <input type="password" name="ollama_com_session"
-           placeholder="{% if has_ollama_cookie %}saved — paste to replace{% else %}paste your __Secure-next-auth.session-token value{% endif %}" />
+           placeholder="{% if has_ollama_cookie %}saved — paste to replace{% else %}name=value  e.g. wos-session=abc123...{% endif %}" />
     <span class="hint">
-      Get it from your browser: open <strong>ollama.com/settings</strong> → DevTools (F12) →
-      Application → Cookies → copy the value of <code>__Secure-next-auth.session-token</code>.
+      Step-by-step:<br>
+      1. Log in to <strong>ollama.com</strong> in Chrome/Edge<br>
+      2. Go to <strong>ollama.com/settings</strong><br>
+      3. Press <strong>F12</strong> → Application tab → Storage → Cookies → <code>https://ollama.com</code><br>
+      4. Find the session cookie — it is usually named <code>wos-session</code> or <code>__Secure-session</code><br>
+      5. Paste the full <code>name=value</code> pair here (e.g. <code>wos-session=eyJ...</code>)<br>
       Leave blank to keep existing.
     </span>
   </label>
@@ -61,7 +65,7 @@
 
   <label>Host (IP or Domain)
     <input type="text" name="truenas_host" value="{{ truenas_host }}" placeholder="192.168.1.20" />
-    <span class="hint">IP or hostname only — no protocol or port. Connects via <code>ws://host/api/current</code>.</span>
+    <span class="hint">IP or hostname only — no protocol or port.</span>
   </label>
 
   <label>API Key
