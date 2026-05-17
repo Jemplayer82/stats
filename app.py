@@ -619,11 +619,17 @@ def api_ollama_com_usage():
         return jsonify({'error': ErrorCode.PARSE_EXCEPTION, 'details': str(e), 'debug': 'See debug_ollama_fail.html'}), 200
 
     if not fields:
-        # Save HTML snapshot only if not already saved in exception handler
         if not debug_html_saved:
             with open('debug_ollama_fail.html', 'w') as f:
                 f.write(html)
-        return jsonify({'error': ErrorCode.PARSE_FAILED, 'hint': 'Could not find usage blocks in page. See debug_ollama_fail.html'}), 200
+        soup2 = BeautifulSoup(html, 'html.parser')
+        title = soup2.title.string if soup2.title else '(no title)'
+        return jsonify({
+            'error': ErrorCode.PARSE_FAILED,
+            'hint': 'Could not find usage blocks in page.',
+            'page_title': title,
+            'page_snippet': html[:500],
+        }), 200
 
     return jsonify({'ok': True, 'data': fields})
 
