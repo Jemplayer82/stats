@@ -418,61 +418,74 @@ def api_truenas_status():
             'attempted_url': f'https://{host}/api/v2.0/system/info',
         }), 200
 
-    active_alerts = [
-        {'level': a['level'], 'text': a.get('formatted', a.get('text', ''))}
-        for a in alerts
-        if a.get('level') in ('CRITICAL', 'WARNING')
-    ]
-
-    pool_list = []
-    for p in pools:
-        scan = p.get('scan') or {}
-        pool_list.append({
-            'name':          p['name'],
-            'status':        p['status'],
-            'healthy':       p.get('healthy', True),
-            'warning':       p.get('warning', False),
-            'status_code':   p.get('status_code', ''),
-            'status_detail': p.get('status_detail', ''),
-            'fragmentation': p.get('fragmentation', 0),
-            'allocated':     p.get('allocated', 0),
-            'size':          p.get('size', 0),
-            'free':          p.get('free', 0),
-            'scan': {
-                'function':       scan.get('function', ''),
-                'state':          scan.get('state', ''),
-                'percentage':     round(scan.get('percentage', 0), 1),
-                'errors':         scan.get('errors', 0),
-                'secs_left':      scan.get('total_secs_left'),
-                'end_time':       (scan.get('end_time') or {}).get('$date'),
-            },
-        })
-
-    # Network sparkline — last hour of bond1, downsampled to ~60 pts
-    network = None
     try:
-        net_raw = _truenas_api(host, api_key, 'reporting/get_data', method='POST',
-                               body=[[{'name': 'interface', 'identifier': 'bond1'}],
-                                     {'unit': 'HOUR', 'page': 1}])
-        pts = (net_raw[0].get('data') or []) if net_raw else []
-        sampled = pts[::60] if pts else []
-        network = {
-            'interface': 'bond1',
-            'rx': [round(p[1], 2) for p in sampled if len(p) > 1],
-            'tx': [round(p[2], 2) for p in sampled if len(p) > 2],
-        }
-    except Exception:
-        pass
+        active_alerts = [
+            {'level': a['level'], 'text': a.get('formatted', a.get('text', ''))}
+            for a in alerts
+            if isinstance(a, dict) and a.get('level') in ('CRITICAL', 'WARNING')
+        ]
 
-    return jsonify({
-        'ok':       True,
-        'pools':    pool_list,
-        'alerts':   active_alerts,
-        'network':  network,
-        'uptime':   sysinfo.get('uptime_seconds', 0),
-        'hostname': sysinfo.get('hostname', ''),
-        'version':  sysinfo.get('version', ''),
-    })
+        pool_list = []
+        for p in pools:
+            if not isinstance(p, dict):
+                continue
+            scan = p.get('scan') or {}
+            pool_list.append({
+                'name':          p.get('name', ''),
+                'status':        p.get('status', ''),
+                'healthy':       p.get('healthy', True),
+                'warning':       p.get('warning', False),
+                'status_code':   p.get('status_code', ''),
+                'status_detail': p.get('status_detail', ''),
+                'fragmentation': p.get('fragmentation', 0),
+                'allocated':     p.get('allocated', 0),
+                'size':          p.get('size', 0),
+                'free':          p.get('free', 0),
+                'scan': {
+                    'function':       scan.get('function', ''),
+                    'state':          scan.get('state', ''),
+                    'percentage':     round(scan.get('percentage', 0) or 0, 1),
+                    'errors':         scan.get('errors', 0),
+                    'secs_left':      scan.get('total_secs_left'),
+                    'end_time':       (scan.get('end_time') or {}).get('$date'),
+                },
+            })
+
+        # Network sparkline — last hour of bond1, downsampled to ~60 pts
+        network = None
+        try:
+            net_raw = _truenas_api(host, api_key, 'reporting/get_data', method='POST',
+                                   body=[[{'name': 'interface', 'identifier': 'bond1'}],
+                                         {'unit': 'HOUR', 'page': 1}])
+            pts = (net_raw[0].get('data') or []) if net_raw else []
+            sampled = pts[::60] if pts else []
+            network = {
+                'interface': 'bond1',
+                'rx': [round(p[1], 2) for p in sampled if len(p) > 1],
+                'tx': [round(p[2], 2) for p in sampled if len(p) > 2],
+            }
+        except Exception:
+            pass
+
+        sysinfo = sysinfo if isinstance(sysinfo, dict) else {}
+        return jsonify({
+            'ok':       True,
+            'pools':    pool_list,
+            'alerts':   active_alerts,
+            'network':  network,
+            'uptime':   sysinfo.get('uptime_seconds', 0),
+            'hostname': sysinfo.get('hostname', ''),
+            'version':  sysinfo.get('version', ''),
+        })
+    except Exception as e:
+        return jsonify({
+            'error': ErrorCode.PARSE_EXCEPTION,
+            'details': str(e),
+            'pools_type': type(pools).__name__,
+            'pools_sample': str(pools)[:300],
+            'alerts_type': type(alerts).__name__,
+            'sysinfo_type': type(sysinfo).__name__,
+        }), 200
 
 
 # ---------------------------------------------------------------------------
