@@ -389,7 +389,7 @@ def _truenas_api(host, api_key, path, method='GET', body=None):
         f'https://{host}/api/v2.0/{path}',
         headers={'Authorization': f'Bearer {api_key}'},
         json=body,
-        timeout=10,
+        timeout=(5, 5),
         verify=False,
     )
     resp.raise_for_status()
@@ -412,7 +412,11 @@ def api_truenas_status():
         alerts  = _truenas_api(host, api_key, 'alert/list')
         sysinfo = _truenas_api(host, api_key, 'system/info')
     except Exception as e:
-        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
+        return jsonify({
+            'error': ErrorCode.API_ERROR,
+            'details': str(e),
+            'attempted_url': f'https://{host}/api/v2.0/system/info',
+        }), 200
 
     active_alerts = [
         {'level': a['level'], 'text': a.get('formatted', a.get('text', ''))}
