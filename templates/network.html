@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}Network{% endblock %}
+{% block content %}
+
+<h1>Network</h1>
+
+<section id="net-section">
+
+  <!-- UniFi header card -->
+  <div style="margin-bottom:1rem">
+    <div class="px-column" style="border-radius:10px;overflow:hidden">
+      <div class="px-column-header node-unifi">
+        <span class="px-column-title">
+          <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/unifi.webp" class="server-icon"> UniFi Network
+        </span>
+        <span class="server-header-right" id="net-sub">
+          <span class="chart-sub" style="color:#fff;opacity:.7">loading…</span>
+        </span>
+      </div>
+      <div style="padding:.75rem 1rem" id="net-overview"></div>
+    </div>
+  </div>
+
+  <!-- Device grid -->
+  <div id="net-devices" class="net-device-grid" style="margin-bottom:1.5rem"></div>
+
+  <!-- Client list -->
+  <div id="net-clients"></div>
+
+</section>
+
+<script>
+function formatUptime(seconds) {
+  if (!seconds || seconds === 0) return 'off';
+  const d = Math.floor(seconds / (3600*24));
+  const h = Math.floor(seconds % (3600*24) / 3600);
+  const m = Math.floor(seconds % 3600 / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let l = 0, n = parseInt(bytes, 10) || 0;
+  while (n >= 1024 && ++l) n = n / 1024;
+  return n.toFixed(1) + ' ' + units[l];
+}
+
+const TYPE_ICONS  = { udm: '🛡️', ugw: '🛡️', uxg: '🛡️', uap: '📡', usw: '🔀', ulte: '📶', uck: '☁️' };
+const TYPE_LABELS = { udm: 'Gateway', ugw: 'Gateway', uxg: 'Gateway', uap: 'Access Point', usw: 'Switch', ulte: 'LTE', uck: 'Cloud Key' };
+const TYPE_ORDER  = { udm: 0, ugw: 0, uxg: 0, usw: 1, uap: 2, ulte: 3, uck: 4 };
+
+const RADIO_BAND = {
+  na:  { label: '5 GHz',   cls: 'ghz5' },
+  ng:  { label: '2.4 GHz', cls: 'ghz24' },
+  '6e': { label: '6 GHz',  cls: 'ghz6' },
+};
+
+function bar(pct, label, sub, online) {
+  if (!online || pct === null) {
+    return `
+      <div class="px-vm-bar-row">
+        <span class="px-label">${label}</span>
+        <div class="px-node-bar" style="flex:1"><div class="px-node-bar-fill" style="width:0%"></div></div>
+        <span class="px-vm-pct">${sub || '-'}</span>
+      </div>`;
+  }
+  const cls = pct > 85 ? 'danger' : pct > 60 ? 'warn' : '';
+  return `
+    <div class="px-vm-bar-row">
+      <span class="px-label">${label}</span>
+      <div class="px-node-bar" style="flex:1"><div class="px-node-bar-fill ${cls}" style="width:${pct}%"></div></div>
+      <span class="px-vm-pct">${sub || pct + '%'}</span>
+    </div>`;
+}
+
+function renderDevice(d) {
+  const online = d.state === 1;
+  const icon   = TYPE_ICONS[d.type]  || '📟';
+  const label  = TYPE_LABELS[d.type] || (d.type ? d.type.toUpperCase() : 'Device');
+
+  const cpuHtml = d.cpu != null ? bar(Math.round(d.cpu), 'CPU', d.cpu + '%', online) : '';
+  const memHtml = d.mem != null ? bar(Math.round(d.mem), 'RAM', d.mem + '%', online) : '';
+
+  let extraHtml = '';
+
+  if (d.type === 'uap' && d.radios && d.radios.length > 0) {
+    extraHtml = d.radios.map(r => {
+      const band = RADIO_BAND[r.radio] || { label: r.radio || 'Radio', cls: 'ghz5' };
+      const ch   = r.channel ? ` ch ${r.channel}` : '';
+      return `
+        <div class="net-radio-row">
+          <span class="net-radio-band ${band.cls}">${band.label}${ch}</span>
+          <span class="px-value">${r.num_sta} client${r.num_sta !== 1 ? 's' : ''}</span>
+        </div>`;
+    }).join('');
+  } else if (d.type === 'usw' && d.port_count) {
+    const portsBar = bar(
+      Math.round(d.ports_up / d.port_count * 100),
+      'Ports',
+      `${d.ports_up}/${d.port_count} up`,
+      online
+    );
+    extraHtml = portsBar;
+  }
+
+  const clientsRow = d.num_sta > 0 && d.type !== 'uap'
+    ? `<div class="px-vm-bar-row"><span class="px-label">Clients</span><div class="px-node-bar" style="flex:1"></div><span class="px-vm-pct">${d.num_sta}</span></div>`
+    : '';
+
+  return `
+    <div class="px-card ${!online ? 'is-off' : ''}">
+      <div class="px-top">
+        <span class="px-type">${icon} ${label}</span>
+      </div>
+      <div class="px-name">${d.name}${d.model ? ` <small>${d.model}</small>` : ''}</div>
+      <div class="px-stats">
+        ${cpuHtml}
+        ${memHtml}
+        ${clientsRow}
+        ${extraHtml}
+        <div class="px-vm-bar-row" style="margin-top:.25rem">
+          <span class="px-label">Uptime</span>
+          <div class="px-node-bar" style="flex:1"></div>
+          <span class="px-vm-pct">${formatUptime(d.uptime)}</span>
+        </div>
+        ${d.ip ? `<div class="px-vm-bar-row"><span class="px-label">IP</span><div class="px-node-bar" style="flex:1"></div><span class="px-vm-pct" style="font-family:monospace;font-size:.7rem">${d.ip}</span></div>` : ''}
+      </div>
+      <div class="px-status ${online ? 'on' : 'off'}">${online ? 'online' : 'offline'}</div>
+    </div>`;
+}
+
+function signalClass(dbm) {
+  if (dbm == null) return 'signal-none';
+  if (dbm >= -65) return 'signal-good';
+  if (dbm >= -75) return 'signal-ok';
+  return 'signal-weak';
+}
+
+function renderClients(clients, wired, wireless, total) {
+  const sorted = [...clients].sort((a, b) => {
+    const nameA = a.name || a.ip || a.mac;
+    const nameB = b.name || b.ip || b.mac;
+    return nameA.localeCompare(nameB);
+  });
+
+  const rows = sorted.map(c => {
+    const name    = c.name || `<span style="color:var(--muted)">${c.mac}</span>`;
+    const typeTag = c.is_wired
+      ? `<span class="badge" style="background:rgba(16,185,129,.15);color:var(--green)">Wired</span>`
+      : `<span class="badge" style="background:rgba(124,58,237,.15);color:#a78bfa">Wi-Fi</span>`;
+    const ssid    = c.essid ? `<span style="color:var(--muted);font-size:.75rem">${c.essid}</span>` : '';
+    const sigHtml = !c.is_wired && c.signal != null
+      ? `<span class="${signalClass(c.signal)}">${c.signal} dBm</span>`
+      : `<span class="signal-none">—</span>`;
+
+    return `
+      <tr>
+        <td>${name}</td>
+        <td class="mono">${c.ip || '—'}</td>
+        <td>${typeTag} ${ssid}</td>
+        <td>${sigHtml}</td>
+        <td class="num" style="color:var(--muted)">${formatUptime(c.uptime)}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <div class="net-clients-section">
+      <div class="net-clients-header">
+        <h3>Connected Clients</h3>
+        <span class="chart-sub">${total} total &nbsp;·&nbsp; ${wired} wired &nbsp;·&nbsp; ${wireless} wireless</span>
+      </div>
+      ${rows ? `
+        <table>
+          <thead>
+            <tr>
+              <th>Name / MAC</th>
+              <th>IP</th>
+              <th>Type / SSID</th>
+              <th>Signal</th>
+              <th class="num">Uptime</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>` : '<div class="empty">No clients connected.</div>'}
+    </div>`;
+}
+
+async function loadNetworkStatus() {
+  const sub      = document.getElementById('net-sub');
+  const overview = document.getElementById('net-overview');
+  const devicesEl = document.getElementById('net-devices');
+  const clientsEl = document.getElementById('net-clients');
+
+  try {
+    const res  = await fetch('/api/unifi-status');
+    const data = await res.json();
+
+    if (data.error === 'incomplete_config') {
+      sub.innerHTML = '<span class="chart-sub" style="color:#fff;opacity:.7">not configured</span>';
+      overview.innerHTML = '<a href="/settings" class="setup-link">Configure UniFi →</a>';
+      devicesEl.innerHTML = '';
+      clientsEl.innerHTML = '';
+      return;
+    }
+    if (data.error) {
+      sub.innerHTML = `<span class="px-status off" style="position:static;border-radius:4px">error</span>`;
+      overview.innerHTML = `<span style="color:var(--red);font-size:.85rem">${data.error}: ${data.details || ''}</span>`;
+      return;
+    }
+
+    const onlineCount = data.devices.filter(d => d.state === 1).length;
+    sub.innerHTML = `
+      <span class="server-uptime">${onlineCount}/${data.devices.length} devices</span>
+      <span class="px-status on" style="position:static;border-radius:4px">online</span>`;
+
+    const apCount  = data.devices.filter(d => d.type === 'uap').length;
+    const swCount  = data.devices.filter(d => d.type === 'usw').length;
+    const gwCount  = data.devices.filter(d => ['udm','ugw','uxg'].includes(d.type)).length;
+
+    overview.innerHTML = `
+      <div class="net-summary">
+        <div class="ceph-stat"><span class="ceph-val">${data.total_clients}</span><span class="ceph-lbl">Clients</span></div>
+        <div class="ceph-stat"><span class="ceph-val">${data.wired_clients}</span><span class="ceph-lbl">Wired</span></div>
+        <div class="ceph-stat"><span class="ceph-val">${data.wireless_clients}</span><span class="ceph-lbl">Wireless</span></div>
+        <div class="ceph-stat" style="margin-left:auto">
+          <span class="ceph-val" style="font-size:.85rem">${gwCount} gateway${gwCount!==1?'s':''} &nbsp;·&nbsp; ${swCount} switch${swCount!==1?'es':''} &nbsp;·&nbsp; ${apCount} AP${apCount!==1?'s':''}</span>
+          <span class="ceph-lbl">infrastructure</span>
+        </div>
+      </div>`;
+
+    const sorted = [...data.devices].sort((a, b) =>
+      (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9) ||
+      (a.name || '').localeCompare(b.name || '')
+    );
+
+    devicesEl.innerHTML = sorted.map(renderDevice).join('');
+    clientsEl.innerHTML = renderClients(data.clients, data.wired_clients, data.wireless_clients, data.total_clients);
+
+  } catch (e) {
+    document.getElementById('net-sub').innerHTML =
+      `<span class="px-status off" style="position:static;border-radius:4px">error</span>`;
+  }
+}
+
+loadNetworkStatus();
+setInterval(loadNetworkStatus, 30_000);
+</script>
+
+{% endblock %}

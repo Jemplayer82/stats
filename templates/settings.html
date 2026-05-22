@@ -76,6 +76,29 @@
     </span>
   </label>
 
+  <hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+  <h3>UniFi Network</h3>
+
+  <label>Controller URL
+    <input type="text" name="unifi_host" value="{{ unifi_host }}" placeholder="https://192.168.1.1" />
+    <span class="hint">UDM, UDM Pro, or self-hosted Network Application URL. Include port if needed (e.g. <code>:8443</code>).</span>
+  </label>
+
+  <label>Username
+    <input type="text" name="unifi_username" value="{{ unifi_username }}" placeholder="admin" />
+  </label>
+
+  <label>Password
+    <input type="password" name="unifi_password"
+           placeholder="{% if has_unifi_password %}saved — paste to replace{% else %}paste your password{% endif %}" />
+  </label>
+
+  <label>Site Name
+    <input type="text" name="unifi_site" value="{{ unifi_site }}" placeholder="default" />
+    <span class="hint">Leave blank for <code>default</code>. Find it in Network → Settings → System → Site Name.</span>
+  </label>
+
   <div class="form-actions">
     <a href="{{ url_for('index') }}" class="btn-cancel">Cancel</a>
     <button type="submit" class="btn-submit">Save</button>

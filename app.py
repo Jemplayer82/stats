@@ -33,6 +33,10 @@ CONFIG_PROXMOX_TOKEN_SECRET = 'proxmox_token_secret'
 CONFIG_GEMINI_SERVICE_ACCOUNT = 'gemini_service_account'
 CONFIG_TRUENAS_HOST = 'truenas_host'
 CONFIG_TRUENAS_API_KEY = 'truenas_api_key'
+CONFIG_UNIFI_HOST = 'unifi_host'
+CONFIG_UNIFI_USERNAME = 'unifi_username'
+CONFIG_UNIFI_PASSWORD = 'unifi_password'
+CONFIG_UNIFI_SITE = 'unifi_site'
 
 # Error codes
 class ErrorCode:
@@ -87,6 +91,11 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/network')
+def network():
+    return render_template('network.html')
+
+
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
@@ -119,6 +128,15 @@ def settings():
         if truenas_host:    set_config(CONFIG_TRUENAS_HOST, truenas_host)
         if truenas_api_key: set_config(CONFIG_TRUENAS_API_KEY, truenas_api_key)
 
+        unifi_host     = request.form.get(CONFIG_UNIFI_HOST, '').strip()
+        unifi_username = request.form.get(CONFIG_UNIFI_USERNAME, '').strip()
+        unifi_password = request.form.get(CONFIG_UNIFI_PASSWORD, '').strip()
+        unifi_site     = request.form.get(CONFIG_UNIFI_SITE, '').strip()
+        if unifi_host:     set_config(CONFIG_UNIFI_HOST, unifi_host)
+        if unifi_username: set_config(CONFIG_UNIFI_USERNAME, unifi_username)
+        if unifi_password: set_config(CONFIG_UNIFI_PASSWORD, unifi_password)
+        if unifi_site:     set_config(CONFIG_UNIFI_SITE, unifi_site)
+
         return redirect(url_for('settings'))
 
     return render_template('settings.html',
@@ -129,7 +147,11 @@ def settings():
                            has_proxmox_secret=bool(get_config(CONFIG_PROXMOX_TOKEN_SECRET, '')),
                            has_gemini_config=bool(get_config(CONFIG_GEMINI_SERVICE_ACCOUNT, '')),
                            truenas_host=get_config(CONFIG_TRUENAS_HOST, ''),
-                           has_truenas_api_key=bool(get_config(CONFIG_TRUENAS_API_KEY, '')))
+                           has_truenas_api_key=bool(get_config(CONFIG_TRUENAS_API_KEY, '')),
+                           unifi_host=get_config(CONFIG_UNIFI_HOST, ''),
+                           unifi_username=get_config(CONFIG_UNIFI_USERNAME, ''),
+                           unifi_site=get_config(CONFIG_UNIFI_SITE, ''),
+                           has_unifi_password=bool(get_config(CONFIG_UNIFI_PASSWORD, '')))
 
 
 # ---------------------------------------------------------------------------
@@ -652,6 +674,135 @@ def api_ollama_com_usage():
     return jsonify({'ok': True, 'data': fields})
 
 
+
+
+# ---------------------------------------------------------------------------
+# UniFi Network
+# ---------------------------------------------------------------------------
+
+def _unifi_login(host, username, password):
+    """Authenticate with UniFi controller. Returns (session, csrf_token, api_prefix)."""
+    s = http.Session()
+    s.verify = False
+
+    # Try new UniFi OS / Network Application API (7+, UDM/UDM Pro)
+    try:
+        r = s.post(f"{host}/api/auth/login",
+                   json={"username": username, "password": password},
+                   timeout=10, verify=False)
+        if r.ok:
+            body = {}
+            try:
+                body = r.json()
+            except Exception:
+                pass
+            csrf = (body.get('csrf_token') or
+                    r.headers.get('X-Csrf-Token') or
+                    s.cookies.get('csrf_token', ''))
+            return s, csrf, '/proxy/network'
+    except Exception:
+        pass
+
+    # Fall back to old UniFi Controller API (pre-7, non-UDM)
+    r = s.post(f"{host}/api/login",
+               json={"username": username, "password": password},
+               timeout=10, verify=False)
+    if not r.ok:
+        raise Exception(f"Authentication failed (HTTP {r.status_code})")
+    return s, '', ''
+
+
+@app.route('/api/unifi-status')
+def api_unifi_status():
+    host     = get_config(CONFIG_UNIFI_HOST, '')
+    username = get_config(CONFIG_UNIFI_USERNAME, '')
+    password = get_config(CONFIG_UNIFI_PASSWORD, '')
+    site     = get_config(CONFIG_UNIFI_SITE, '') or 'default'
+
+    if not all([host, username, password]):
+        return jsonify({'error': ErrorCode.INCOMPLETE_CONFIG}), 200
+
+    if not host.startswith('http'):
+        host = f'https://{host}'
+
+    try:
+        session, csrf, prefix = _unifi_login(host, username, password)
+        hdrs = {'X-Csrf-Token': csrf} if csrf else {}
+        base = f"{host}{prefix}/api/s/{site}"
+
+        r = session.get(f"{base}/stat/device", headers=hdrs, timeout=10, verify=False)
+        devices_raw = r.json().get('data', []) if r.ok else []
+
+        r = session.get(f"{base}/stat/sta", headers=hdrs, timeout=10, verify=False)
+        clients_raw = r.json().get('data', []) if r.ok else []
+
+        devices = []
+        for d in devices_raw:
+            sys_stats = d.get('system-stats') or {}
+            cpu = sys_stats.get('cpu') or d.get('cpu_util')
+            mem = sys_stats.get('mem') or d.get('mem_util')
+            try: cpu = round(float(cpu), 1) if cpu is not None else None
+            except Exception: cpu = None
+            try: mem = round(float(mem), 1) if mem is not None else None
+            except Exception: mem = None
+
+            device = {
+                'id':      d.get('_id', ''),
+                'name':    d.get('name') or d.get('hostname', 'Unknown'),
+                'model':   d.get('model', ''),
+                'type':    d.get('type', ''),
+                'state':   d.get('state', 0),
+                'uptime':  d.get('uptime', 0),
+                'cpu':     cpu,
+                'mem':     mem,
+                'ip':      d.get('ip', ''),
+                'version': d.get('version', ''),
+                'num_sta': d.get('num_sta', 0),
+            }
+
+            if d.get('type') == 'uap':
+                radio_map = {}
+                for vap in (d.get('vap_table') or []):
+                    radio = vap.get('radio', '')
+                    if radio not in radio_map:
+                        radio_map[radio] = {'radio': radio, 'num_sta': 0, 'channel': None}
+                    radio_map[radio]['num_sta'] += vap.get('num_sta', 0)
+                    if not radio_map[radio]['channel'] and vap.get('channel'):
+                        radio_map[radio]['channel'] = vap['channel']
+                device['radios'] = list(radio_map.values())
+
+            if d.get('type') == 'usw':
+                ports = d.get('port_table') or []
+                device['port_count'] = len(ports)
+                device['ports_up'] = sum(1 for p in ports if p.get('up'))
+
+            devices.append(device)
+
+        clients = [
+            {
+                'mac':      c.get('mac', ''),
+                'ip':       c.get('ip', ''),
+                'name':     c.get('name') or c.get('hostname', ''),
+                'is_wired': c.get('is_wired', False),
+                'essid':    c.get('essid', ''),
+                'signal':   c.get('signal'),
+                'uptime':   c.get('uptime', 0),
+                'rx_bytes': c.get('rx_bytes', 0),
+                'tx_bytes': c.get('tx_bytes', 0),
+            }
+            for c in clients_raw
+        ]
+
+        return jsonify({
+            'ok':               True,
+            'devices':          devices,
+            'clients':          clients,
+            'total_clients':    len(clients_raw),
+            'wired_clients':    sum(1 for c in clients_raw if c.get('is_wired')),
+            'wireless_clients': sum(1 for c in clients_raw if not c.get('is_wired')),
+        })
+    except Exception as e:
+        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
 
 
 if __name__ == '__main__':
