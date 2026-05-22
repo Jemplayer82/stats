@@ -728,13 +728,23 @@ def api_unifi_status():
     try:
         session, csrf, prefix = _unifi_login(host, username, password)
         hdrs = {'X-Csrf-Token': csrf} if csrf else {}
-        base = f"{host}{prefix}/api/s/{site}"
 
-        r = session.get(f"{base}/stat/device", headers=hdrs, timeout=10, verify=False)
-        devices_raw = r.json().get('data', []) if r.ok else []
-
-        r = session.get(f"{base}/stat/sta", headers=hdrs, timeout=10, verify=False)
-        clients_raw = r.json().get('data', []) if r.ok else []
+        # UDM uses /proxy/network prefix; self-hosted Network Application uses none.
+        # Try both so either topology works.
+        prefixes = [prefix, ''] if prefix else ['', '/proxy/network']
+        devices_raw = []
+        clients_raw = []
+        for p in prefixes:
+            base = f"{host}{p}/api/s/{site}"
+            try:
+                r = session.get(f"{base}/stat/device", headers=hdrs, timeout=10, verify=False)
+                if r.ok and 'data' in r.json():
+                    devices_raw = r.json()['data']
+                    r2 = session.get(f"{base}/stat/sta", headers=hdrs, timeout=10, verify=False)
+                    clients_raw = r2.json().get('data', []) if r2.ok else []
+                    break
+            except Exception:
+                continue
 
         devices = []
         for d in devices_raw:
