@@ -35,6 +35,10 @@ CONFIG_GEMINI_SERVICE_ACCOUNT = 'gemini_service_account'
 CONFIG_TRUENAS_HOST = 'truenas_host'
 CONFIG_TRUENAS_API_KEY = 'truenas_api_key'
 CONFIG_UNIFI_API_KEY = 'unifi_api_key'
+CONFIG_UNIFI_HOST = 'unifi_host'
+CONFIG_UNIFI_USERNAME = 'unifi_username'
+CONFIG_UNIFI_PASSWORD = 'unifi_password'
+CONFIG_UNIFI_SITE = 'unifi_site'
 
 # Error codes
 class ErrorCode:
@@ -126,8 +130,14 @@ def settings():
         if truenas_host:    set_config(CONFIG_TRUENAS_HOST, truenas_host)
         if truenas_api_key: set_config(CONFIG_TRUENAS_API_KEY, truenas_api_key)
 
-        unifi_api_key = request.form.get(CONFIG_UNIFI_API_KEY, '').strip()
-        if unifi_api_key: set_config(CONFIG_UNIFI_API_KEY, unifi_api_key)
+        unifi_host     = request.form.get(CONFIG_UNIFI_HOST, '').strip()
+        unifi_username = request.form.get(CONFIG_UNIFI_USERNAME, '').strip()
+        unifi_password = request.form.get(CONFIG_UNIFI_PASSWORD, '').strip()
+        unifi_site     = request.form.get(CONFIG_UNIFI_SITE, '').strip()
+        if unifi_host:     set_config(CONFIG_UNIFI_HOST, unifi_host)
+        if unifi_username: set_config(CONFIG_UNIFI_USERNAME, unifi_username)
+        if unifi_password: set_config(CONFIG_UNIFI_PASSWORD, unifi_password)
+        if unifi_site:     set_config(CONFIG_UNIFI_SITE, unifi_site)
 
         return redirect(url_for('settings'))
 
@@ -140,7 +150,10 @@ def settings():
                            has_gemini_config=bool(get_config(CONFIG_GEMINI_SERVICE_ACCOUNT, '')),
                            truenas_host=get_config(CONFIG_TRUENAS_HOST, ''),
                            has_truenas_api_key=bool(get_config(CONFIG_TRUENAS_API_KEY, '')),
-                           has_unifi_api_key=bool(get_config(CONFIG_UNIFI_API_KEY, '')))
+                           unifi_host=get_config(CONFIG_UNIFI_HOST, ''),
+                           unifi_username=get_config(CONFIG_UNIFI_USERNAME, ''),
+                           unifi_site=get_config(CONFIG_UNIFI_SITE, ''),
+                           has_unifi_password=bool(get_config(CONFIG_UNIFI_PASSWORD, '')))
 
 
 # ---------------------------------------------------------------------------
@@ -666,137 +679,128 @@ def api_ollama_com_usage():
 
 
 # ---------------------------------------------------------------------------
-# UniFi Network (Ubiquiti Cloud API — api.ui.com)
+# UniFi Network (local UniFi OS API)
 # ---------------------------------------------------------------------------
 
-UNIFI_API_BASE = 'https://api.ui.com'
+def _unifi_login(host, username, password):
+    """Login to UniFi OS. Returns (session, csrf_token, api_prefix)."""
+    s = http.Session()
+    s.verify = False
+
+    # UniFi OS (7+, UDM, UOS Server)
+    r = s.post(f"{host}/api/auth/login",
+               json={"username": username, "password": password},
+               timeout=10, verify=False)
+    if r.ok:
+        try:
+            body = r.json()
+        except Exception:
+            body = {}
+        csrf = (body.get('csrf_token') or
+                r.headers.get('X-Csrf-Token') or
+                s.cookies.get('csrf_token', ''))
+        return s, csrf, '/proxy/network'
+
+    # Legacy UniFi Network Application (pre-7)
+    r = s.post(f"{host}/api/login",
+               json={"username": username, "password": password},
+               timeout=10, verify=False)
+    if not r.ok:
+        raise Exception(f"Login failed (HTTP {r.status_code})")
+    return s, '', ''
 
 
 @app.route('/api/unifi-status')
 def api_unifi_status():
-    api_key = get_config(CONFIG_UNIFI_API_KEY, '')
-    if not api_key:
+    host     = get_config(CONFIG_UNIFI_HOST, '')
+    username = get_config(CONFIG_UNIFI_USERNAME, '')
+    password = get_config(CONFIG_UNIFI_PASSWORD, '')
+    site     = get_config(CONFIG_UNIFI_SITE, '') or 'default'
+
+    if not all([host, username, password]):
         return jsonify({'error': ErrorCode.INCOMPLETE_CONFIG}), 200
 
-    hdrs = {'X-API-KEY': api_key, 'Accept': 'application/json'}
+    if not host.startswith('http'):
+        host = f'https://{host}'
 
     try:
-        r = http.get(f"{UNIFI_API_BASE}/ea/devices", headers=hdrs, timeout=15)
-        if r.status_code == 401:
-            hdrs = {'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'}
-            r = http.get(f"{UNIFI_API_BASE}/ea/devices", headers=hdrs, timeout=15)
+        session, csrf, prefix = _unifi_login(host, username, password)
+        hdrs = {'X-Csrf-Token': csrf} if csrf else {}
+        base = f"{host}{prefix}/api/s/{site}"
+
+        r = session.get(f"{base}/stat/device", headers=hdrs, timeout=15, verify=False)
         if not r.ok:
-            return jsonify({'error': ErrorCode.API_ERROR,
-                            'details': f"HTTP {r.status_code}", 'body': r.text[:300]}), 200
+            return jsonify({'error': ErrorCode.API_ERROR, 'details': f"devices: HTTP {r.status_code}"}), 200
+        devices_raw = r.json().get('data', [])
 
-        # Devices are grouped by host: data[].devices[]
-        hosts_raw = r.json().get('data', [])
+        r = session.get(f"{base}/stat/sta", headers=hdrs, timeout=15, verify=False)
+        clients_raw = r.json().get('data', []) if r.ok else []
 
-        r2 = http.get(f"{UNIFI_API_BASE}/ea/sites", headers=hdrs, timeout=15)
-        sites_raw = r2.json().get('data', []) if r2.ok else []
+        SKIP_FS = {'vfat', 'erofs', 'tmpfs', 'devtmpfs', 'squashfs', 'iso9660', 'zram'}
 
-        def _infer_type(shortname, is_console):
-            sn = (shortname or '').upper()
-            if sn == 'UOSSERVER':
-                return 'console'
-            if any(sn.startswith(p) for p in ('U7', 'U6', 'UAP', 'UMA', 'UWB')):
-                return 'uap'
-            if any(sn.startswith(p) for p in ('USL', 'USF', 'USW')):
-                return 'usw'
-            if any(sn.startswith(p) for p in ('UXG', 'UDR', 'UGW', 'UCG')):
-                return 'ugw'
-            if is_console:
-                return 'ugw'
-            if any(sn.startswith(p) for p in ('USP', 'UP')):
-                return 'pdu'
-            return 'unknown'
-
-        now = time.time()
         devices = []
-        for host in hosts_raw:
-            host_name = host.get('hostName', '')
-            for d in (host.get('devices') or []):
-                uptime = 0
-                startup = d.get('startupTime')
-                if startup:
-                    try:
-                        dt = datetime.fromisoformat(startup.replace('Z', '+00:00'))
-                        uptime = max(0, int(now - dt.timestamp()))
-                    except Exception:
-                        pass
+        for d in devices_raw:
+            sys_stats = d.get('system-stats') or {}
+            try: cpu = round(float(sys_stats.get('cpu', 0)), 1)
+            except Exception: cpu = None
+            try: mem = round(float(sys_stats.get('mem', 0)), 1)
+            except Exception: mem = None
 
-                devices.append({
-                    'id':             d.get('id', ''),
-                    'name':           d.get('name', 'Unknown'),
-                    'model':          d.get('model', ''),
-                    'shortname':      d.get('shortname', ''),
-                    'type':           _infer_type(d.get('shortname'), d.get('isConsole', False)),
-                    'state':          1 if d.get('status') == 'online' else 0,
-                    'uptime':         uptime,
-                    'ip':             d.get('ip', ''),
-                    'version':        d.get('version', ''),
-                    'firmwareStatus': d.get('firmwareStatus', ''),
-                    'updateAvailable': bool(d.get('updateAvailable')),
-                    'isConsole':      d.get('isConsole', False),
-                    'site':           host_name,
-                    'cpu':            None,
-                    'mem':            None,
-                    'num_sta':        0,
-                })
-
-        # Aggregate site stats — dedup by siteId, keep entry with most clients
-        site_map = {}
-        for site in sites_raw:
-            sid = site.get('siteId')
-            if not sid:
-                continue
-            meta   = site.get('meta') or {}
-            stats  = site.get('statistics') or {}
-            counts = stats.get('counts') or {}
-            pcts   = stats.get('percentages') or {}
-            wans_d = stats.get('wans') or {}
-            isp    = stats.get('ispInfo') or {}
-
-            wifi  = counts.get('wifiClient', 0)
-            wired = counts.get('wiredClient', 0)
-            total = counts.get('totalDevice', 0)
-
-            existing = site_map.get(sid)
-            if existing and (wifi + wired) <= (existing['wifiClients'] + existing['wiredClients']):
-                continue
-
-            wans = []
-            for wan_name, wan_info in wans_d.items():
-                wan_isp = wan_info.get('ispInfo') or isp
-                wans.append({
-                    'name':       wan_name,
-                    'externalIp': wan_info.get('externalIp', ''),
-                    'isp':        (wan_isp or {}).get('name', ''),
-                    'uptime':     wan_info.get('wanUptime'),
-                })
-
-            site_map[sid] = {
-                'name':         meta.get('desc') or meta.get('name', 'Site'),
-                'wifiClients':  wifi,
-                'wiredClients': wired,
-                'totalDevices': total,
-                'txRetry':      pcts.get('txRetry'),
-                'wans':         wans,
+            device = {
+                'id':      d.get('_id', ''),
+                'name':    d.get('name') or d.get('hostname', 'Unknown'),
+                'model':   d.get('model', ''),
+                'type':    d.get('type', ''),
+                'state':   d.get('state', 0),
+                'uptime':  d.get('uptime', 0),
+                'cpu':     cpu,
+                'mem':     mem,
+                'ip':      d.get('ip', ''),
+                'version': d.get('version', ''),
+                'num_sta': d.get('num_sta', 0),
             }
 
-        sites = [s for s in site_map.values()
-                 if s['totalDevices'] > 0 or s['wifiClients'] > 0 or s['wiredClients'] > 0]
+            if d.get('type') == 'uap':
+                radio_map = {}
+                for vap in (d.get('vap_table') or []):
+                    radio = vap.get('radio', '')
+                    if radio not in radio_map:
+                        radio_map[radio] = {'radio': radio, 'num_sta': 0, 'channel': None}
+                    radio_map[radio]['num_sta'] += vap.get('num_sta', 0)
+                    if not radio_map[radio]['channel'] and vap.get('channel'):
+                        radio_map[radio]['channel'] = vap['channel']
+                if radio_map:
+                    device['radios'] = list(radio_map.values())
 
-        total_wifi  = sum(s['wifiClients']  for s in sites)
-        total_wired = sum(s['wiredClients'] for s in sites)
+            if d.get('type') == 'usw':
+                ports = d.get('port_table') or []
+                device['port_count'] = len(ports)
+                device['ports_up'] = sum(1 for p in ports if p.get('up'))
+
+            devices.append(device)
+
+        clients = [
+            {
+                'mac':      c.get('mac', ''),
+                'ip':       c.get('ip', ''),
+                'name':     c.get('name') or c.get('hostname', ''),
+                'is_wired': c.get('is_wired', False),
+                'essid':    c.get('essid', ''),
+                'signal':   c.get('signal'),
+                'uptime':   c.get('uptime', 0),
+                'rx_bytes': c.get('rx_bytes', 0),
+                'tx_bytes': c.get('tx_bytes', 0),
+            }
+            for c in clients_raw
+        ]
 
         return jsonify({
             'ok':               True,
             'devices':          devices,
-            'sites':            sites,
-            'total_clients':    total_wifi + total_wired,
-            'wired_clients':    total_wired,
-            'wireless_clients': total_wifi,
+            'clients':          clients,
+            'total_clients':    len(clients_raw),
+            'wired_clients':    sum(1 for c in clients_raw if c.get('is_wired')),
+            'wireless_clients': sum(1 for c in clients_raw if not c.get('is_wired')),
         })
     except Exception as e:
         return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200

@@ -80,13 +80,23 @@
 
   <h3>UniFi Network</h3>
 
-  <label>API Key
-    <input type="password" name="unifi_api_key"
-           placeholder="{% if has_unifi_api_key %}saved — paste to replace{% else %}paste your UI API key{% endif %}" />
-    <span class="hint">
-      Generate at <strong>unifi.ui.com</strong> → Profile (top right) → <strong>API Keys</strong> → Create API Key.
-      Leave blank to keep existing.
-    </span>
+  <label>Controller URL
+    <input type="text" name="unifi_host" value="{{ unifi_host }}" placeholder="https://192.168.1.122" />
+    <span class="hint">IP or hostname of your UniFi OS Server, UDM, or UDM Pro. Include <code>https://</code>.</span>
+  </label>
+
+  <label>Username
+    <input type="text" name="unifi_username" value="{{ unifi_username }}" placeholder="admin" />
+  </label>
+
+  <label>Password
+    <input type="password" name="unifi_password"
+           placeholder="{% if has_unifi_password %}saved — paste to replace{% else %}paste your password{% endif %}" />
+  </label>
+
+  <label>Site Name
+    <input type="text" name="unifi_site" value="{{ unifi_site }}" placeholder="default" />
+    <span class="hint">Leave blank for <code>default</code>. Check <strong>Network → Settings → System → Site Name</strong>.</span>
   </label>
 
   <div class="form-actions">

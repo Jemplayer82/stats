@@ -22,7 +22,7 @@
 
   <div id="net-devices" class="net-device-grid" style="margin-bottom:1.5rem"></div>
 
-  <div id="net-sites"></div>
+  <div id="net-clients"></div>
 
 </section>
 
@@ -37,86 +37,139 @@ function formatUptime(seconds) {
   return `${m}m`;
 }
 
-const TYPE_ICONS  = { ugw: '🛡️', uap: '📡', usw: '🔀', console: '🖥️', pdu: '🔌', ulte: '📶', uck: '☁️' };
-const TYPE_LABELS = { ugw: 'Gateway', uap: 'Access Point', usw: 'Switch', console: 'Console', pdu: 'Power', ulte: 'LTE', uck: 'Cloud Key' };
-const TYPE_ORDER  = { ugw: 0, console: 1, usw: 2, uap: 3, pdu: 4, ulte: 5, uck: 6 };
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let l = 0, n = parseInt(bytes, 10) || 0;
+  while (n >= 1024 && ++l) n = n / 1024;
+  return n.toFixed(1) + ' ' + units[l];
+}
+
+const TYPE_ICONS  = { ugw: '🛡️', udm: '🛡️', uxg: '🛡️', uap: '📡', usw: '🔀', ulte: '📶', uck: '☁️' };
+const TYPE_LABELS = { ugw: 'Gateway', udm: 'Gateway', uxg: 'Gateway', uap: 'Access Point', usw: 'Switch', ulte: 'LTE', uck: 'Cloud Key' };
+const TYPE_ORDER  = { udm: 0, ugw: 0, uxg: 0, usw: 1, uap: 2, ulte: 3, uck: 4 };
+
+const RADIO_BAND = {
+  na:   { label: '5 GHz',   cls: 'ghz5' },
+  ng:   { label: '2.4 GHz', cls: 'ghz24' },
+  '6e': { label: '6 GHz',   cls: 'ghz6' },
+};
+
+function bar(pct, label, sub, online) {
+  if (!online || pct === null || pct === undefined) {
+    return `<div class="px-vm-bar-row">
+      <span class="px-label">${label}</span>
+      <div class="px-node-bar" style="flex:1"><div class="px-node-bar-fill" style="width:0%"></div></div>
+      <span class="px-vm-pct">${sub || '-'}</span>
+    </div>`;
+  }
+  const cls = pct > 85 ? 'danger' : pct > 60 ? 'warn' : '';
+  return `<div class="px-vm-bar-row">
+    <span class="px-label">${label}</span>
+    <div class="px-node-bar" style="flex:1"><div class="px-node-bar-fill ${cls}" style="width:${Math.min(pct,100)}%"></div></div>
+    <span class="px-vm-pct">${sub !== undefined ? sub : pct + '%'}</span>
+  </div>`;
+}
 
 function renderDevice(d) {
   const online = d.state === 1;
   const icon   = TYPE_ICONS[d.type]  || '📟';
   const label  = TYPE_LABELS[d.type] || (d.type ? d.type.toUpperCase() : 'Device');
 
-  const fwBadge = d.updateAvailable
-    ? `<span class="badge" style="background:rgba(245,158,11,.2);color:#f59e0b;margin-left:.4rem">update</span>`
-    : (d.firmwareStatus === 'upToDate' ? '' : '');
+  const cpuHtml = d.cpu != null ? bar(Math.round(d.cpu), 'CPU', d.cpu + '%', online) : '';
+  const memHtml = d.mem != null ? bar(Math.round(d.mem), 'RAM', d.mem + '%', online) : '';
 
-  const rows = [
-    d.uptime  ? `<div class="px-vm-bar-row"><span class="px-label">Uptime</span><div style="flex:1"></div><span class="px-vm-pct">${formatUptime(d.uptime)}</span></div>` : '',
-    d.ip      ? `<div class="px-vm-bar-row"><span class="px-label">IP</span><div style="flex:1"></div><span class="px-vm-pct" style="font-family:monospace;font-size:.7rem">${d.ip}</span></div>` : '',
-    d.version ? `<div class="px-vm-bar-row"><span class="px-label">FW</span><div style="flex:1"></div><span class="px-vm-pct" style="color:var(--muted)">${d.version}</span></div>` : '',
-    d.site    ? `<div class="px-vm-bar-row"><span class="px-label">Site</span><div style="flex:1"></div><span class="px-vm-pct" style="color:var(--muted)">${d.site}</span></div>` : '',
-  ].filter(Boolean).join('');
+  let extraHtml = '';
+  if (d.type === 'uap' && d.radios && d.radios.length > 0) {
+    extraHtml = d.radios.map(r => {
+      const band = RADIO_BAND[r.radio] || { label: r.radio || 'Radio', cls: 'ghz5' };
+      const ch   = r.channel ? ` ch&nbsp;${r.channel}` : '';
+      return `<div class="net-radio-row">
+        <span class="net-radio-band ${band.cls}">${band.label}${ch}</span>
+        <span class="px-value">${r.num_sta} client${r.num_sta !== 1 ? 's' : ''}</span>
+      </div>`;
+    }).join('');
+  } else if (d.type === 'usw' && d.port_count) {
+    extraHtml = bar(
+      Math.round(d.ports_up / d.port_count * 100),
+      'Ports', `${d.ports_up}/${d.port_count} up`, online
+    );
+  }
+
+  const clientsRow = d.num_sta > 0 && d.type !== 'uap'
+    ? `<div class="px-vm-bar-row"><span class="px-label">Clients</span><div style="flex:1"></div><span class="px-vm-pct">${d.num_sta}</span></div>`
+    : '';
 
   return `
     <div class="px-card ${!online ? 'is-off' : ''}">
-      <div class="px-top">
-        <span class="px-type">${icon} ${label}</span>
+      <div class="px-top"><span class="px-type">${icon} ${label}</span></div>
+      <div class="px-name">${d.name}${d.model ? ` <small>${d.model}</small>` : ''}</div>
+      <div class="px-stats">
+        ${cpuHtml}
+        ${memHtml}
+        ${clientsRow}
+        ${extraHtml}
+        <div class="px-vm-bar-row" style="margin-top:.25rem">
+          <span class="px-label">Uptime</span>
+          <div style="flex:1"></div>
+          <span class="px-vm-pct">${formatUptime(d.uptime)}</span>
+        </div>
+        ${d.ip ? `<div class="px-vm-bar-row"><span class="px-label">IP</span><div style="flex:1"></div><span class="px-vm-pct" style="font-family:monospace;font-size:.7rem">${d.ip}</span></div>` : ''}
       </div>
-      <div class="px-name">${d.name}${fwBadge}${d.model ? `<br><small style="font-weight:400;color:var(--muted);font-size:.75rem">${d.model}</small>` : ''}</div>
-      <div class="px-stats" style="margin-top:.5rem">${rows}</div>
       <div class="px-status ${online ? 'on' : 'off'}">${online ? 'online' : 'offline'}</div>
     </div>`;
 }
 
-function renderSites(sites) {
-  if (!sites || sites.length === 0) return '';
+function signalClass(dbm) {
+  if (dbm == null) return 'signal-none';
+  if (dbm >= -65) return 'signal-good';
+  if (dbm >= -75) return 'signal-ok';
+  return 'signal-weak';
+}
 
-  return sites.map(s => {
-    const txRetry = s.txRetry != null ? `${s.txRetry.toFixed(1)}%` : null;
-    const txClass = s.txRetry > 20 ? 'signal-weak' : s.txRetry > 10 ? 'signal-ok' : 'signal-good';
+function renderClients(clients, wired, wireless, total) {
+  const sorted = [...clients].sort((a, b) =>
+    (a.name || a.ip || a.mac).localeCompare(b.name || b.ip || b.mac)
+  );
 
-    const wansHtml = (s.wans || []).map(w => {
-      const uptimePct = w.uptime != null ? w.uptime.toFixed(1) : null;
-      const upCls = w.uptime == null ? '' : w.uptime >= 99 ? 'signal-good' : w.uptime >= 90 ? 'signal-ok' : 'signal-weak';
-      return `
-        <div class="tn-spark-wrap" style="flex:1;min-width:180px">
-          <div class="tn-spark-title">${w.name} ${w.isp ? `<span style="font-weight:400;color:var(--muted)">${w.isp}</span>` : ''}</div>
-          ${w.externalIp ? `<div style="font-size:.75rem;color:var(--muted);margin:.2rem 0;font-family:monospace">${w.externalIp}</div>` : ''}
-          ${uptimePct != null ? `<div style="font-size:.8rem">Uptime: <span class="${upCls}">${uptimePct}%</span></div>` : ''}
-        </div>`;
-    }).join('');
-
-    return `
-      <div style="margin-bottom:1rem">
-        <div class="px-column" style="border-radius:10px;overflow:hidden">
-          <div class="px-column-header" style="background:#1e3a5f;border-bottom-color:#1e3a5f">
-            <span class="px-column-title" style="color:#fff">${s.name}</span>
-            <span class="server-header-right">
-              <span class="server-uptime">${s.wifiClients} wireless · ${s.wiredClients} wired</span>
-              <span class="px-status on" style="position:static;border-radius:4px">${s.wifiClients + s.wiredClients} clients</span>
-            </span>
-          </div>
-          <div style="padding:.75rem 1rem">
-            <div class="ceph-grid" style="flex-wrap:wrap;gap:.75rem">
-              ${wansHtml}
-              ${txRetry ? `
-              <div class="tn-spark-wrap" style="flex:1;min-width:160px">
-                <div class="tn-spark-title">TX Retry</div>
-                <div style="font-size:1.4rem;font-weight:700;margin-top:.25rem" class="${txClass}">${txRetry}</div>
-                <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">avg retry rate</div>
-              </div>` : ''}
-            </div>
-          </div>
-        </div>
-      </div>`;
+  const rows = sorted.map(c => {
+    const name    = c.name || `<span style="color:var(--muted);font-family:monospace;font-size:.8rem">${c.mac}</span>`;
+    const typeTag = c.is_wired
+      ? `<span class="badge" style="background:rgba(16,185,129,.15);color:var(--green)">Wired</span>`
+      : `<span class="badge" style="background:rgba(124,58,237,.15);color:#a78bfa">Wi-Fi</span>`;
+    const ssid    = !c.is_wired && c.essid ? `<span style="color:var(--muted);font-size:.75rem;margin-left:.35rem">${c.essid}</span>` : '';
+    const sig     = !c.is_wired && c.signal != null
+      ? `<span class="${signalClass(c.signal)}">${c.signal} dBm</span>`
+      : `<span class="signal-none">—</span>`;
+    return `<tr>
+      <td>${name}</td>
+      <td class="mono">${c.ip || '—'}</td>
+      <td>${typeTag}${ssid}</td>
+      <td>${sig}</td>
+      <td class="num" style="color:var(--muted)">${formatUptime(c.uptime)}</td>
+    </tr>`;
   }).join('');
+
+  return `
+    <div class="net-clients-section">
+      <div class="net-clients-header">
+        <h3>Connected Clients</h3>
+        <span class="chart-sub">${total} total &nbsp;·&nbsp; ${wired} wired &nbsp;·&nbsp; ${wireless} wireless</span>
+      </div>
+      ${rows ? `<table>
+        <thead><tr>
+          <th>Name / MAC</th><th>IP</th><th>Type / SSID</th><th>Signal</th><th class="num">Uptime</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>` : '<div class="empty">No clients connected.</div>'}
+    </div>`;
 }
 
 async function loadNetworkStatus() {
   const sub       = document.getElementById('net-sub');
   const overview  = document.getElementById('net-overview');
   const devicesEl = document.getElementById('net-devices');
-  const sitesEl   = document.getElementById('net-sites');
+  const clientsEl = document.getElementById('net-clients');
 
   try {
     const res  = await fetch('/api/unifi-status');
@@ -126,7 +179,7 @@ async function loadNetworkStatus() {
       sub.innerHTML = '<span class="chart-sub" style="color:#fff;opacity:.7">not configured</span>';
       overview.innerHTML = '<a href="/settings" class="setup-link">Configure UniFi →</a>';
       devicesEl.innerHTML = '';
-      sitesEl.innerHTML   = '';
+      clientsEl.innerHTML = '';
       return;
     }
     if (data.error) {
@@ -137,8 +190,8 @@ async function loadNetworkStatus() {
 
     const onlineCount = data.devices.filter(d => d.state === 1).length;
     sub.innerHTML = `
-      <span class="server-uptime">${onlineCount}/${data.devices.length} devices online</span>
-      <span class="px-status on" style="position:static;border-radius:4px">connected</span>`;
+      <span class="server-uptime">${onlineCount}/${data.devices.length} devices</span>
+      <span class="px-status on" style="position:static;border-radius:4px">online</span>`;
 
     const byType = t => data.devices.filter(d => d.type === t).length;
     overview.innerHTML = `
@@ -148,7 +201,7 @@ async function loadNetworkStatus() {
         <div class="ceph-stat"><span class="ceph-val">${data.wired_clients}</span><span class="ceph-lbl">Wired</span></div>
         <div class="ceph-stat" style="margin-left:auto">
           <span class="ceph-val" style="font-size:.85rem">
-            ${byType('ugw')} gateway · ${byType('usw')} switch · ${byType('uap')} AP · ${byType('pdu')} PDU
+            ${byType('ugw') + byType('udm') + byType('uxg')} gateway · ${byType('usw')} switch · ${byType('uap')} AP
           </span>
           <span class="ceph-lbl">infrastructure</span>
         </div>
@@ -156,12 +209,11 @@ async function loadNetworkStatus() {
 
     const sorted = [...data.devices].sort((a, b) =>
       (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9) ||
-      (a.site || '').localeCompare(b.site || '') ||
       (a.name || '').localeCompare(b.name || '')
     );
 
     devicesEl.innerHTML = sorted.map(renderDevice).join('');
-    sitesEl.innerHTML   = renderSites(data.sites);
+    clientsEl.innerHTML = renderClients(data.clients, data.wired_clients, data.wireless_clients, data.total_clients);
 
   } catch (e) {
     document.getElementById('net-sub').innerHTML =
