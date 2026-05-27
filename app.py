@@ -671,6 +671,26 @@ def api_ollama_com_usage():
 UNIFI_API_BASE = 'https://api.ui.com'
 
 
+@app.route('/api/unifi-debug')
+def api_unifi_debug():
+    api_key = get_config(CONFIG_UNIFI_API_KEY, '')
+    if not api_key:
+        return jsonify({'error': 'no key'}), 200
+    hdrs = {'X-API-KEY': api_key, 'Accept': 'application/json'}
+    out = {}
+    for path in ['/ea/devices', '/ea/clients', '/ea/sites', '/v1/sites', '/v1/hosts']:
+        r = http.get(f"{UNIFI_API_BASE}{path}", headers=hdrs, timeout=15)
+        if r.status_code == 401:
+            hdrs = {'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'}
+            r = http.get(f"{UNIFI_API_BASE}{path}", headers=hdrs, timeout=15)
+        try:
+            body = r.json()
+        except Exception:
+            body = r.text[:500]
+        out[path] = {'status': r.status_code, 'body': body}
+    return jsonify(out)
+
+
 @app.route('/api/unifi-status')
 def api_unifi_status():
     api_key = get_config(CONFIG_UNIFI_API_KEY, '')
