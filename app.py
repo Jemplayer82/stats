@@ -681,6 +681,12 @@ def api_unifi_status():
 
     try:
         r = http.get(f"{UNIFI_API_BASE}/ea/devices", headers=hdrs, timeout=15)
+
+        # Some API versions want Bearer instead of X-API-KEY
+        if r.status_code == 401:
+            hdrs = {'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'}
+            r = http.get(f"{UNIFI_API_BASE}/ea/devices", headers=hdrs, timeout=15)
+
         if not r.ok:
             return jsonify({'error': ErrorCode.API_ERROR,
                             'details': f"HTTP {r.status_code}",
@@ -689,6 +695,7 @@ def api_unifi_status():
 
         r = http.get(f"{UNIFI_API_BASE}/ea/clients", headers=hdrs, timeout=15)
         clients_raw = r.json().get('data', []) if r.ok else []
+
 
         devices = []
         for d in devices_raw:
