@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from bs4 import BeautifulSoup
 from google.cloud import monitoring_v3
 from google.oauth2 import service_account
+from datetime import datetime, timezone
 import requests as http
 import urllib3
 import json
@@ -671,26 +672,6 @@ def api_ollama_com_usage():
 UNIFI_API_BASE = 'https://api.ui.com'
 
 
-@app.route('/api/unifi-debug')
-def api_unifi_debug():
-    api_key = get_config(CONFIG_UNIFI_API_KEY, '')
-    if not api_key:
-        return jsonify({'error': 'no key'}), 200
-    hdrs = {'X-API-KEY': api_key, 'Accept': 'application/json'}
-    out = {}
-    for path in ['/ea/devices', '/ea/clients', '/ea/sites', '/v1/sites', '/v1/hosts']:
-        r = http.get(f"{UNIFI_API_BASE}{path}", headers=hdrs, timeout=15)
-        if r.status_code == 401:
-            hdrs = {'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'}
-            r = http.get(f"{UNIFI_API_BASE}{path}", headers=hdrs, timeout=15)
-        try:
-            body = r.json()
-        except Exception:
-            body = r.text[:500]
-        out[path] = {'status': r.status_code, 'body': body}
-    return jsonify(out)
-
-
 @app.route('/api/unifi-status')
 def api_unifi_status():
     api_key = get_config(CONFIG_UNIFI_API_KEY, '')
@@ -701,103 +682,121 @@ def api_unifi_status():
 
     try:
         r = http.get(f"{UNIFI_API_BASE}/ea/devices", headers=hdrs, timeout=15)
-
-        # Some API versions want Bearer instead of X-API-KEY
         if r.status_code == 401:
             hdrs = {'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'}
             r = http.get(f"{UNIFI_API_BASE}/ea/devices", headers=hdrs, timeout=15)
-
         if not r.ok:
             return jsonify({'error': ErrorCode.API_ERROR,
-                            'details': f"HTTP {r.status_code}",
-                            'body': r.text[:500]}), 200
-        devices_raw = r.json().get('data', [])
+                            'details': f"HTTP {r.status_code}", 'body': r.text[:300]}), 200
 
-        r = http.get(f"{UNIFI_API_BASE}/ea/clients", headers=hdrs, timeout=15)
-        clients_raw = r.json().get('data', []) if r.ok else []
+        # Devices are grouped by host: data[].devices[]
+        hosts_raw = r.json().get('data', [])
 
+        r2 = http.get(f"{UNIFI_API_BASE}/ea/sites", headers=hdrs, timeout=15)
+        sites_raw = r2.json().get('data', []) if r2.ok else []
 
+        def _infer_type(shortname, is_console):
+            sn = (shortname or '').upper()
+            if sn == 'UOSSERVER':
+                return 'console'
+            if any(sn.startswith(p) for p in ('U7', 'U6', 'UAP', 'UMA', 'UWB')):
+                return 'uap'
+            if any(sn.startswith(p) for p in ('USL', 'USF', 'USW')):
+                return 'usw'
+            if any(sn.startswith(p) for p in ('UXG', 'UDR', 'UGW', 'UCG')):
+                return 'ugw'
+            if is_console:
+                return 'ugw'
+            if any(sn.startswith(p) for p in ('USP', 'UP')):
+                return 'pdu'
+            return 'unknown'
+
+        now = time.time()
         devices = []
-        for d in devices_raw:
-            # Cloud API uses camelCase; fall back to snake_case for compatibility
-            stats = d.get('statistics') or {}
-            cpu = stats.get('cpu') or stats.get('cpuUtilization')
-            mem = stats.get('memory') or stats.get('memUtilization')
-            try: cpu = round(float(cpu), 1) if cpu is not None else None
-            except Exception: cpu = None
-            try: mem = round(float(mem), 1) if mem is not None else None
-            except Exception: mem = None
+        for host in hosts_raw:
+            host_name = host.get('hostName', '')
+            for d in (host.get('devices') or []):
+                uptime = 0
+                startup = d.get('startupTime')
+                if startup:
+                    try:
+                        dt = datetime.fromisoformat(startup.replace('Z', '+00:00'))
+                        uptime = max(0, int(now - dt.timestamp()))
+                    except Exception:
+                        pass
 
-            # state: cloud API may return string "connected" or int 1
-            raw_state = d.get('state', 0)
-            is_online = raw_state in (1, 'connected', 'CONNECTED', 'online', 'ONLINE')
+                devices.append({
+                    'id':             d.get('id', ''),
+                    'name':           d.get('name', 'Unknown'),
+                    'model':          d.get('model', ''),
+                    'shortname':      d.get('shortname', ''),
+                    'type':           _infer_type(d.get('shortname'), d.get('isConsole', False)),
+                    'state':          1 if d.get('status') == 'online' else 0,
+                    'uptime':         uptime,
+                    'ip':             d.get('ip', ''),
+                    'version':        d.get('version', ''),
+                    'firmwareStatus': d.get('firmwareStatus', ''),
+                    'updateAvailable': bool(d.get('updateAvailable')),
+                    'isConsole':      d.get('isConsole', False),
+                    'site':           host_name,
+                    'cpu':            None,
+                    'mem':            None,
+                    'num_sta':        0,
+                })
 
-            device = {
-                'id':      d.get('id') or d.get('_id', ''),
-                'name':    d.get('name') or d.get('hostname', 'Unknown'),
-                'model':   d.get('model', ''),
-                'type':    d.get('type', ''),
-                'state':   1 if is_online else 0,
-                'uptime':  d.get('uptime', 0),
-                'cpu':     cpu,
-                'mem':     mem,
-                'ip':      d.get('ip', '') or d.get('ipAddress', ''),
-                'version': d.get('firmwareVersion') or d.get('version', ''),
-                'num_sta': stats.get('connectedStations', 0) or d.get('num_sta', 0) or 0,
+        # Aggregate site stats — dedup by siteId, keep entry with most clients
+        site_map = {}
+        for site in sites_raw:
+            sid = site.get('siteId')
+            if not sid:
+                continue
+            meta   = site.get('meta') or {}
+            stats  = site.get('statistics') or {}
+            counts = stats.get('counts') or {}
+            pcts   = stats.get('percentages') or {}
+            wans_d = stats.get('wans') or {}
+            isp    = stats.get('ispInfo') or {}
+
+            wifi  = counts.get('wifiClient', 0)
+            wired = counts.get('wiredClient', 0)
+            total = counts.get('totalDevice', 0)
+
+            existing = site_map.get(sid)
+            if existing and (wifi + wired) <= (existing['wifiClients'] + existing['wiredClients']):
+                continue
+
+            wans = []
+            for wan_name, wan_info in wans_d.items():
+                wan_isp = wan_info.get('ispInfo') or isp
+                wans.append({
+                    'name':       wan_name,
+                    'externalIp': wan_info.get('externalIp', ''),
+                    'isp':        (wan_isp or {}).get('name', ''),
+                    'uptime':     wan_info.get('wanUptime'),
+                })
+
+            site_map[sid] = {
+                'name':         meta.get('desc') or meta.get('name', 'Site'),
+                'wifiClients':  wifi,
+                'wiredClients': wired,
+                'totalDevices': total,
+                'txRetry':      pcts.get('txRetry'),
+                'wans':         wans,
             }
 
-            if d.get('type') == 'uap':
-                # Cloud API may expose radios array or vap_table
-                radio_map = {}
-                for radio in (d.get('radios') or []):
-                    key = radio.get('radio') or radio.get('band', '')
-                    radio_map[key] = {
-                        'radio':   key,
-                        'num_sta': radio.get('numSta') or radio.get('num_sta', 0),
-                        'channel': radio.get('channel'),
-                    }
-                for vap in (d.get('vap_table') or []):
-                    key = vap.get('radio', '')
-                    if key not in radio_map:
-                        radio_map[key] = {'radio': key, 'num_sta': 0, 'channel': None}
-                    radio_map[key]['num_sta'] += vap.get('num_sta', 0)
-                    if not radio_map[key]['channel'] and vap.get('channel'):
-                        radio_map[key]['channel'] = vap['channel']
-                if radio_map:
-                    device['radios'] = list(radio_map.values())
+        sites = [s for s in site_map.values()
+                 if s['totalDevices'] > 0 or s['wifiClients'] > 0 or s['wiredClients'] > 0]
 
-            if d.get('type') == 'usw':
-                ports = d.get('portTable') or d.get('port_table') or []
-                device['port_count'] = len(ports)
-                device['ports_up'] = sum(1 for p in ports if p.get('isUp') or p.get('up'))
-
-            devices.append(device)
-
-        def _is_wired(c):
-            return c.get('isWired') if c.get('isWired') is not None else c.get('is_wired', False)
-
-        clients = [
-            {
-                'mac':      c.get('mac', ''),
-                'ip':       c.get('ip') or c.get('ipAddress', ''),
-                'name':     c.get('name') or c.get('hostname', ''),
-                'is_wired': _is_wired(c),
-                'essid':    c.get('ssid') or c.get('essid', ''),
-                'signal':   c.get('signal'),
-                'uptime':   c.get('uptime', 0),
-                'rx_bytes': c.get('rxBytes') or c.get('rx_bytes', 0),
-                'tx_bytes': c.get('txBytes') or c.get('tx_bytes', 0),
-            }
-            for c in clients_raw
-        ]
+        total_wifi  = sum(s['wifiClients']  for s in sites)
+        total_wired = sum(s['wiredClients'] for s in sites)
 
         return jsonify({
             'ok':               True,
             'devices':          devices,
-            'clients':          clients,
-            'total_clients':    len(clients_raw),
-            'wired_clients':    sum(1 for c in clients_raw if _is_wired(c)),
-            'wireless_clients': sum(1 for c in clients_raw if not _is_wired(c)),
+            'sites':            sites,
+            'total_clients':    total_wifi + total_wired,
+            'wired_clients':    total_wired,
+            'wireless_clients': total_wifi,
         })
     except Exception as e:
         return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
