@@ -1,8 +1,12 @@
-# Stats Dashboard
+<img src="assets/fathom-header-banner.svg" alt="Fathom Works — stats" width="100%">
 
-A self-hosted web dashboard that aggregates usage and health metrics from multiple AI services and home infrastructure into a single view. Configure your credentials once and check everything from one page.
+# `$ stats`
 
-## What It Monitors
+**A self-hosted web dashboard that aggregates usage and health metrics from multiple AI services and home infrastructure into a single view.** Configure your credentials once and check everything from one page.
+
+---
+
+## `[ what it monitors ]`
 
 | Service | Data Shown |
 |---------|------------|
@@ -15,7 +19,9 @@ A self-hosted web dashboard that aggregates usage and health metrics from multip
 
 Credentials are stored locally in a SQLite database and managed through the built-in settings page — nothing leaves your machine.
 
-## Stack
+---
+
+## `[ stack ]`
 
 | Component | Technology |
 |-----------|------------|
@@ -23,30 +29,34 @@ Credentials are stored locally in a SQLite database and managed through the buil
 | Database | SQLite (via Flask-SQLAlchemy) |
 | Deployment | Docker + Docker Compose |
 
-## Quick Start
+---
 
-### 1. Clone the repo
+## `[ quick start ]`
+
+### 1. clone the repo
 
 ```bash
-git clone https://github.com/jemplayer82/stats.git
-cd stats
+$ git clone https://github.com/jemplayer82/stats.git
+$ cd stats
 ```
 
-### 2. Create the data directory
+### 2. create the data directory
 
 ```bash
-mkdir -p /storage/stats
+$ mkdir -p /storage/stats
 ```
 
-### 3. Start the container
+### 3. start the container
 
 ```bash
-docker compose up -d
+$ docker compose up -d
 ```
 
 The dashboard will be available at **http://\<your-host\>:5000**.
 
-## Configuration
+---
+
+## `[ configuration ]`
 
 Open `http://<your-host>:5000/settings` and enter credentials for the services you want to monitor:
 
@@ -60,7 +70,9 @@ Open `http://<your-host>:5000/settings` and enter credentials for the services y
 
 Save and return to the dashboard — each service card populates automatically.
 
-## Environment Variables
+---
+
+## `[ environment variables ]`
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -68,15 +80,21 @@ Save and return to the dashboard — each service card populates automatically.
 
 Data is persisted to `/storage/stats` on the host.
 
-## Useful Commands
+---
+
+## `[ useful commands ]`
 
 ```bash
 # View logs
-docker compose logs -f
+$ docker compose logs -f
 
 # Stop
-docker compose down
+$ docker compose down
 
 # Rebuild after code changes
-docker compose up -d --build
+$ docker compose up -d --build
 ```
+
+---
+
+<img src="assets/fathom-footer-banner.svg" alt="Fathom Works — sound the depths before you set a course" width="100%">
