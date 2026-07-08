@@ -11,6 +11,8 @@ import json
 import os
 import time
 import re
+import threading
+import fcntl
 
 # Suppress insecure request warnings for Proxmox (often self-signed)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -61,6 +63,14 @@ class ErrorCode:
 class AppConfig(db.Model):
     key   = db.Column(db.String(64), primary_key=True)
     value = db.Column(db.Text, default='')
+
+
+class WanSample(db.Model):
+    id           = db.Column(db.Integer, primary_key=True)
+    ts           = db.Column(db.Integer, index=True)  # unix seconds
+    wan_key      = db.Column(db.String(16), index=True)  # 'WAN' or 'WAN2'
+    availability = db.Column(db.Float)   # 0-100, from UniFi's ping-monitor uptime_stats
+    latency_ms   = db.Column(db.Float, nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -815,6 +825,108 @@ def api_unifi_status():
         })
     except Exception as e:
         return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
+
+
+# ---------------------------------------------------------------------------
+# WAN uptime poller — samples UniFi's live ping-monitor stats over time.
+# UniFi doesn't store this history itself (only a live rolling window), so
+# we poll and persist it ourselves to build a real uptime bar.
+# ---------------------------------------------------------------------------
+
+WAN_POLL_INTERVAL_S = 300  # 5 minutes
+
+
+def _poll_wan_uptime_once():
+    host     = get_config(CONFIG_UNIFI_HOST, '')
+    username = get_config(CONFIG_UNIFI_USERNAME, '')
+    password = get_config(CONFIG_UNIFI_PASSWORD, '')
+    site     = get_config(CONFIG_UNIFI_SITE, '') or 'default'
+    if not all([host, username, password]):
+        return
+
+    if not host.startswith('http'):
+        host = f'https://{host}'
+
+    session, csrf, prefix = _unifi_login(host, username, password)
+    hdrs = {'X-Csrf-Token': csrf} if csrf else {}
+    r = session.get(f"{host}{prefix}/api/s/{site}/stat/health", headers=hdrs, timeout=15, verify=False)
+    r.raise_for_status()
+
+    wan_health = next((s for s in r.json().get('data', []) if s.get('subsystem') == 'wan'), None)
+    if not wan_health:
+        return
+
+    now = int(time.time())
+    for wan_key, stats in (wan_health.get('uptime_stats') or {}).items():
+        availability = stats.get('availability')
+        if availability is None:
+            continue
+        latencies = [m['latency_average'] for m in (stats.get('monitors') or [])
+                     if m.get('latency_average') is not None]
+        latency_ms = sum(latencies) / len(latencies) if latencies else None
+        db.session.add(WanSample(ts=now, wan_key=wan_key, availability=availability, latency_ms=latency_ms))
+    db.session.commit()
+
+
+def _wan_poll_loop():
+    while True:
+        try:
+            with app.app_context():
+                _poll_wan_uptime_once()
+        except Exception as e:
+            print(f"[wan-poller] error: {e}")
+        time.sleep(WAN_POLL_INTERVAL_S)
+
+
+_wan_poller_lock_handle = None  # kept alive for the process lifetime — do not remove
+
+
+def _start_wan_poller():
+    """gunicorn runs multiple worker processes that each import this module;
+    a non-blocking flock ensures only one of them actually polls, so we don't
+    write duplicate/racing samples."""
+    global _wan_poller_lock_handle
+    lock_file = open('/data/.wan_poller.lock', 'w')
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return  # another worker already holds it
+    _wan_poller_lock_handle = lock_file
+    threading.Thread(target=_wan_poll_loop, daemon=True).start()
+
+
+_start_wan_poller()
+
+
+@app.route('/api/wan-uptime-history')
+def api_wan_uptime_history():
+    days = 7
+    since = int(time.time()) - days * 86400
+    samples = db.session.scalars(
+        db.select(WanSample).where(WanSample.ts >= since).order_by(WanSample.ts)
+    ).all()
+
+    # Bucket into hourly blocks per WAN; a block's availability is the WORST
+    # sample seen that hour, so brief outages aren't averaged away.
+    buckets = {}
+    for s in samples:
+        hour_ts = s.ts - (s.ts % 3600)
+        b = buckets.setdefault((s.wan_key, hour_ts), {'availability_min': s.availability, 'latencies': []})
+        b['availability_min'] = min(b['availability_min'], s.availability)
+        if s.latency_ms is not None:
+            b['latencies'].append(s.latency_ms)
+
+    wans = {}
+    for (wan_key, hour_ts), b in buckets.items():
+        wans.setdefault(wan_key, []).append({
+            'ts':           hour_ts,
+            'availability': round(b['availability_min'], 1),
+            'latency_ms':   round(sum(b['latencies']) / len(b['latencies']), 1) if b['latencies'] else None,
+        })
+    for wan_key in wans:
+        wans[wan_key].sort(key=lambda x: x['ts'])
+
+    return jsonify({'ok': True, 'wans': wans, 'since': since, 'days': days})
 
 
 if __name__ == '__main__':

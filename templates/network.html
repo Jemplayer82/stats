@@ -17,6 +17,7 @@
         </span>
       </div>
       <div style="padding:.75rem 1rem" id="net-overview"></div>
+      <div style="padding:0 1rem 1rem" id="net-wan-uptime"></div>
     </div>
   </div>
 
@@ -127,6 +128,72 @@ function signalClass(dbm) {
   if (dbm >= -65) return 'signal-good';
   if (dbm >= -75) return 'signal-ok';
   return 'signal-weak';
+}
+
+const WAN_LABELS = { WAN: 'WAN1 (Primary)', WAN2: 'WAN2 (Backup)' };
+const WAN_UPTIME_DAYS = 7;
+
+function wanBlockColor(availability) {
+  if (availability == null) return 'var(--border)';
+  if (availability >= 99) return 'var(--green)';
+  if (availability >= 90) return '#f59e0b';
+  return 'var(--red)';
+}
+
+function renderWanUptimeRow(wanKey, hourlyByTs) {
+  const nowHour = Math.floor(Date.now() / 1000 / 3600) * 3600;
+  const blocks = [];
+  for (let h = WAN_UPTIME_DAYS * 24 - 1; h >= 0; h--) {
+    const ts = nowHour - h * 3600;
+    const sample = hourlyByTs[ts];
+    const color = wanBlockColor(sample ? sample.availability : null);
+    const tooltip = sample
+      ? `${new Date(ts * 1000).toLocaleString()} — ${sample.availability}% available` +
+        (sample.latency_ms != null ? `, ${sample.latency_ms}ms avg latency` : '')
+      : `${new Date(ts * 1000).toLocaleString()} — no data`;
+    blocks.push(`<div class="wan-uptime-block" style="background:${color}" title="${tooltip}"></div>`);
+  }
+  return `
+    <div class="wan-uptime-row">
+      <span class="wan-uptime-label">${WAN_LABELS[wanKey] || wanKey}</span>
+      <div class="wan-uptime-blocks">${blocks.join('')}</div>
+    </div>`;
+}
+
+function renderWanUptime(data) {
+  const wans = (data && data.wans) || {};
+  const wanKeys = Object.keys(WAN_LABELS).filter(k => k in wans).concat(
+    Object.keys(wans).filter(k => !(k in WAN_LABELS))
+  );
+
+  if (wanKeys.length === 0) {
+    return `<div class="wan-uptime-section">
+      <div class="wan-uptime-title">Internet Uptime (${WAN_UPTIME_DAYS}d)</div>
+      <div class="empty" style="padding:.5rem 0">Building uptime history — check back in a few hours.</div>
+    </div>`;
+  }
+
+  const rows = wanKeys.map(wanKey => {
+    const hourlyByTs = {};
+    (wans[wanKey] || []).forEach(s => { hourlyByTs[s.ts] = s; });
+    return renderWanUptimeRow(wanKey, hourlyByTs);
+  }).join('');
+
+  return `<div class="wan-uptime-section">
+    <div class="wan-uptime-title">Internet Uptime (${WAN_UPTIME_DAYS}d)</div>
+    ${rows}
+  </div>`;
+}
+
+async function loadWanUptime() {
+  const el = document.getElementById('net-wan-uptime');
+  try {
+    const res  = await fetch('/api/wan-uptime-history');
+    const data = await res.json();
+    el.innerHTML = renderWanUptime(data);
+  } catch (e) {
+    el.innerHTML = '';
+  }
 }
 
 function clientMatchesSearch(c, q) {
@@ -332,6 +399,9 @@ async function loadNetworkStatus() {
 
 loadNetworkStatus();
 setInterval(loadNetworkStatus, 30_000);
+
+loadWanUptime();
+setInterval(loadWanUptime, 5 * 60_000);
 </script>
 
 {% endblock %}

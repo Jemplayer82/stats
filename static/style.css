@@ -614,6 +614,14 @@ a.server-link:hover { opacity: .85; }
 .signal-weak   { color: var(--red); }
 .signal-none   { color: var(--muted); }
 
+.wan-uptime-section { margin-top: .5rem; padding-top: .75rem; border-top: 1px solid rgba(255,255,255,.1); }
+.wan-uptime-title   { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #fff; opacity: .7; margin-bottom: .5rem; }
+.wan-uptime-row      { display: flex; align-items: center; gap: .75rem; margin-bottom: .4rem; }
+.wan-uptime-row:last-child { margin-bottom: 0; }
+.wan-uptime-label    { font-size: .78rem; color: #fff; opacity: .85; width: 120px; flex-shrink: 0; }
+.wan-uptime-blocks   { display: flex; gap: 1px; flex: 1; overflow-x: auto; }
+.wan-uptime-block    { flex: 1; min-width: 3px; height: 18px; border-radius: 1px; }
+
 /* Ceph card */
 .ceph-grid  { display: flex; gap: 1rem; flex-wrap: wrap; }
 .ceph-grid > .tn-spark-wrap { flex: 1; min-width: 160px; }
