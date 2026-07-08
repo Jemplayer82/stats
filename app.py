@@ -729,6 +729,35 @@ def _unifi_login(host, username, password):
     return s, '', ''
 
 
+# Logging in on every single call (every 30s page poll + every 5min bg poll)
+# was enough concurrent session churn to trip UniFi OS's login rate-limit,
+# causing intermittent 401s. Cache one session per worker process and only
+# re-login when it actually stops working.
+_unifi_session_cache = {}
+_unifi_session_lock = threading.Lock()
+
+
+def _unifi_get(host, username, password, path):
+    """GET an authenticated UniFi API path, reusing a cached session and
+    re-logging in (once) only if the cached session has actually expired."""
+    def do_request():
+        with _unifi_session_lock:
+            cached = _unifi_session_cache.get(host)
+            if cached is None:
+                session, csrf, prefix = _unifi_login(host, username, password)
+                cached = {'session': session, 'csrf': csrf, 'prefix': prefix}
+                _unifi_session_cache[host] = cached
+        hdrs = {'X-Csrf-Token': cached['csrf']} if cached['csrf'] else {}
+        return cached['session'].get(f"{host}{cached['prefix']}{path}", headers=hdrs, timeout=15, verify=False)
+
+    r = do_request()
+    if r.status_code in (401, 403):
+        with _unifi_session_lock:
+            _unifi_session_cache.pop(host, None)
+        r = do_request()
+    return r
+
+
 @app.route('/api/unifi-status')
 def api_unifi_status():
     host     = get_config(CONFIG_UNIFI_HOST, '')
@@ -743,16 +772,12 @@ def api_unifi_status():
         host = f'https://{host}'
 
     try:
-        session, csrf, prefix = _unifi_login(host, username, password)
-        hdrs = {'X-Csrf-Token': csrf} if csrf else {}
-        base = f"{host}{prefix}/api/s/{site}"
-
-        r = session.get(f"{base}/stat/device", headers=hdrs, timeout=15, verify=False)
+        r = _unifi_get(host, username, password, f"/api/s/{site}/stat/device")
         if not r.ok:
             return jsonify({'error': ErrorCode.API_ERROR, 'details': f"devices: HTTP {r.status_code}"}), 200
         devices_raw = r.json().get('data', [])
 
-        r = session.get(f"{base}/stat/sta", headers=hdrs, timeout=15, verify=False)
+        r = _unifi_get(host, username, password, f"/api/s/{site}/stat/sta")
         clients_raw = r.json().get('data', []) if r.ok else []
 
         SKIP_FS = {'vfat', 'erofs', 'tmpfs', 'devtmpfs', 'squashfs', 'iso9660', 'zram'}
@@ -847,9 +872,7 @@ def _poll_wan_uptime_once():
     if not host.startswith('http'):
         host = f'https://{host}'
 
-    session, csrf, prefix = _unifi_login(host, username, password)
-    hdrs = {'X-Csrf-Token': csrf} if csrf else {}
-    r = session.get(f"{host}{prefix}/api/s/{site}/stat/health", headers=hdrs, timeout=15, verify=False)
+    r = _unifi_get(host, username, password, f"/api/s/{site}/stat/health")
     r.raise_for_status()
 
     wan_health = next((s for s in r.json().get('data', []) if s.get('subsystem') == 'wan'), None)
