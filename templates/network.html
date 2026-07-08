@@ -140,6 +140,26 @@ function wanBlockColor(availability) {
   return 'var(--red)';
 }
 
+function hourLabel(ts) {
+  const h = new Date(ts * 1000).getHours();
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return h12 + (h < 12 ? 'a' : 'p');
+}
+
+function renderWanUptimeAxis() {
+  const nowHour = Math.floor(Date.now() / 1000 / 3600) * 3600;
+  const ticks = [];
+  for (let h = WAN_UPTIME_HOURS - 1; h >= 0; h--) {
+    const ts = nowHour - h * 3600;
+    ticks.push(`<div class="wan-uptime-tick">${hourLabel(ts)}</div>`);
+  }
+  return `
+    <div class="wan-uptime-row wan-uptime-axis">
+      <span class="wan-uptime-label"></span>
+      <div class="wan-uptime-blocks">${ticks.join('')}</div>
+    </div>`;
+}
+
 function renderWanUptimeRow(wanKey, hourlyByTs) {
   const nowHour = Math.floor(Date.now() / 1000 / 3600) * 3600;
   const blocks = [];
@@ -181,6 +201,7 @@ function renderWanUptime(data) {
 
   return `<div class="wan-uptime-section">
     <div class="wan-uptime-title">Internet Uptime (${WAN_UPTIME_HOURS}h)</div>
+    ${renderWanUptimeAxis()}
     ${rows}
   </div>`;
 }

@@ -621,6 +621,8 @@ a.server-link:hover { opacity: .85; }
 .wan-uptime-label    { font-size: .78rem; color: #fff; opacity: .85; width: 120px; flex-shrink: 0; }
 .wan-uptime-blocks   { display: flex; gap: 1px; flex: 1; overflow-x: auto; }
 .wan-uptime-block    { flex: 1; min-width: 3px; height: 18px; border-radius: 1px; }
+.wan-uptime-axis     { margin-bottom: .15rem; }
+.wan-uptime-tick     { flex: 1; min-width: 3px; text-align: center; font-size: .6rem; color: #fff; opacity: .5; }
 
 /* Ceph card */
 .ceph-grid  { display: flex; gap: 1rem; flex-wrap: wrap; }
