@@ -799,6 +799,8 @@ def api_unifi_status():
                 'uptime':   c.get('uptime', 0),
                 'rx_bytes': c.get('rx_bytes', 0),
                 'tx_bytes': c.get('tx_bytes', 0),
+                'vlan':     c.get('vlan'),
+                'network':  c.get('network', ''),
             }
             for c in clients_raw
         ]

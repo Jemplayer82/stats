@@ -127,8 +127,19 @@ function signalClass(dbm) {
   return 'signal-weak';
 }
 
-function renderClients(clients, wired, wireless, total) {
-  const sorted = [...clients].sort((a, b) =>
+function clientMatchesSearch(c, q) {
+  if (!q) return true;
+  q = q.toLowerCase();
+  return (c.name || '').toLowerCase().includes(q)
+    || (c.mac || '').toLowerCase().includes(q)
+    || (c.ip || '').toLowerCase().includes(q)
+    || (c.network || '').toLowerCase().includes(q)
+    || String(c.vlan ?? '').includes(q);
+}
+
+function renderClients(clients, wired, wireless, total, query) {
+  const filtered = clients.filter(c => clientMatchesSearch(c, query));
+  const sorted = [...filtered].sort((a, b) =>
     (a.name || a.ip || a.mac).localeCompare(b.name || b.ip || b.mac)
   );
 
@@ -141,28 +152,65 @@ function renderClients(clients, wired, wireless, total) {
     const sig     = !c.is_wired && c.signal != null
       ? `<span class="${signalClass(c.signal)}">${c.signal} dBm</span>`
       : `<span class="signal-none">—</span>`;
+    const vlan    = c.vlan != null
+      ? `${c.network ? `<span>${c.network}</span> ` : ''}<span style="color:var(--muted);font-size:.75rem">(${c.vlan})</span>`
+      : `<span class="signal-none">—</span>`;
     return `<tr>
       <td>${name}</td>
       <td class="mono">${c.ip || '—'}</td>
       <td>${typeTag}${ssid}</td>
+      <td>${vlan}</td>
       <td>${sig}</td>
       <td class="num" style="color:var(--muted)">${formatUptime(c.uptime)}</td>
     </tr>`;
   }).join('');
 
+  const emptyMsg = clients.length === 0 ? 'No clients connected.' : 'No clients match your search.';
+
   return `
     <div class="net-clients-section">
       <div class="net-clients-header">
         <h3>Connected Clients</h3>
-        <span class="chart-sub">${total} total &nbsp;·&nbsp; ${wired} wired &nbsp;·&nbsp; ${wireless} wireless</span>
+        <span class="chart-sub">${filtered.length} of ${total} &nbsp;·&nbsp; ${wired} wired &nbsp;·&nbsp; ${wireless} wireless</span>
+      </div>
+      <div style="padding:.75rem 1rem;border-bottom:1px solid var(--border)">
+        <input type="text" id="net-client-search" placeholder="Search by name, IP, MAC, or VLAN…"
+               value="${query ? query.replace(/"/g, '&quot;') : ''}" style="max-width:320px" />
       </div>
       ${rows ? `<table>
         <thead><tr>
-          <th>Name / MAC</th><th>IP</th><th>Type / SSID</th><th>Signal</th><th class="num">Uptime</th>
+          <th>Name / MAC</th><th>IP</th><th>Type / SSID</th><th>VLAN</th><th>Signal</th><th class="num">Uptime</th>
         </tr></thead>
         <tbody>${rows}</tbody>
-      </table>` : '<div class="empty">No clients connected.</div>'}
+      </table>` : `<div class="empty">${emptyMsg}</div>`}
     </div>`;
+}
+
+let clientSearchQuery = '';
+let lastClientData = { clients: [], wired: 0, wireless: 0, total: 0 };
+
+function renderClientsSection() {
+  const clientsEl = document.getElementById('net-clients');
+  const active = document.activeElement;
+  const hadFocus = active && active.id === 'net-client-search';
+  const selStart = hadFocus ? active.selectionStart : null;
+  const selEnd   = hadFocus ? active.selectionEnd : null;
+
+  clientsEl.innerHTML = renderClients(
+    lastClientData.clients, lastClientData.wired, lastClientData.wireless,
+    lastClientData.total, clientSearchQuery
+  );
+
+  const input = document.getElementById('net-client-search');
+  if (!input) return;
+  input.addEventListener('input', e => {
+    clientSearchQuery = e.target.value;
+    renderClientsSection();
+  });
+  if (hadFocus) {
+    input.focus();
+    input.setSelectionRange(selStart, selEnd);
+  }
 }
 
 async function loadNetworkStatus() {
@@ -213,7 +261,11 @@ async function loadNetworkStatus() {
     );
 
     devicesEl.innerHTML = sorted.map(renderDevice).join('');
-    clientsEl.innerHTML = renderClients(data.clients, data.wired_clients, data.wireless_clients, data.total_clients);
+    lastClientData = {
+      clients: data.clients, wired: data.wired_clients,
+      wireless: data.wireless_clients, total: data.total_clients
+    };
+    renderClientsSection();
 
   } catch (e) {
     document.getElementById('net-sub').innerHTML =
