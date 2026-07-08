@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from google.cloud import monitoring_v3
 from google.oauth2 import service_account
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 import requests as http
 import urllib3
 import json
@@ -612,7 +613,13 @@ def api_ollama_com_usage():
     except Exception as e:
         return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
 
-    if r.status_code == 401 or 'Sign in' in r.text[:2000]:
+    # ollama.com now hosts its login flow on the signin.ollama.com subdomain
+    # (WorkOS AuthKit). An expired/invalid cookie gets redirected there instead
+    # of returning 401, so `requests` (which follows redirects) lands on a
+    # different host. Checking the final host is robust to the sign-in page's
+    # markup changing; the raw-text check is kept as a same-host fallback.
+    landed_host = urlparse(r.url).hostname or ''
+    if r.status_code == 401 or landed_host != 'ollama.com' or 'Sign in' in r.text:
         return jsonify({'error': ErrorCode.AUTH_FAILED}), 200
 
     html = r.text
@@ -643,8 +650,10 @@ def api_ollama_com_usage():
             if not pct_match: continue
             pct = round(float(pct_match.group(1)))
 
-            # Find reset time (usually in a [data-time] attribute nearby)
-            reset_tag = container.find(lambda tag: tag.has_attr('data-time'))
+            # Find reset time (data-time div is a sibling of the label/pct
+            # row, not a descendant — both live under the same usage block)
+            block = container.parent
+            reset_tag = block.find(lambda tag: tag.has_attr('data-time')) if block else None
             reset_time = reset_tag.get('data-time') if reset_tag else ''
 
             fields.append({
