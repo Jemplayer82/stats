@@ -137,11 +137,48 @@ function clientMatchesSearch(c, q) {
     || String(c.vlan ?? '').includes(q);
 }
 
-function renderClients(clients, wired, wireless, total, query) {
+const CLIENT_SORT_COLUMNS = [
+  { key: 'name',   label: 'Name / MAC' },
+  { key: 'ip',     label: 'IP' },
+  { key: 'type',   label: 'Type / SSID' },
+  { key: 'vlan',   label: 'VLAN' },
+  { key: 'signal', label: 'Signal' },
+  { key: 'uptime', label: 'Uptime', numClass: 'num' },
+];
+
+function ipSortValue(ip) {
+  const parts = (ip || '').split('.').map(n => parseInt(n, 10));
+  if (parts.length !== 4 || parts.some(isNaN)) return -1;
+  return parts.reduce((acc, n) => acc * 256 + n, 0);
+}
+
+function clientSortValue(c, key) {
+  switch (key) {
+    case 'name':   return (c.name || c.ip || c.mac || '').toLowerCase();
+    case 'ip':     return ipSortValue(c.ip);
+    case 'type':   return (c.is_wired ? '0' : '1') + (c.essid || '').toLowerCase();
+    case 'vlan':   return c.vlan;
+    case 'signal': return c.is_wired ? null : c.signal;
+    case 'uptime': return c.uptime || 0;
+    default:       return '';
+  }
+}
+
+function compareClients(a, b, key, dir) {
+  const va = clientSortValue(a, key);
+  const vb = clientSortValue(b, key);
+  const aNull = va === null || va === undefined;
+  const bNull = vb === null || vb === undefined;
+  if (aNull && bNull) return 0;
+  if (aNull) return 1;   // nulls always sort last, regardless of direction
+  if (bNull) return -1;
+  const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+function renderClients(clients, wired, wireless, total, query, sort) {
   const filtered = clients.filter(c => clientMatchesSearch(c, query));
-  const sorted = [...filtered].sort((a, b) =>
-    (a.name || a.ip || a.mac).localeCompare(b.name || b.ip || b.mac)
-  );
+  const sorted = [...filtered].sort((a, b) => compareClients(a, b, sort.key, sort.dir));
 
   const rows = sorted.map(c => {
     const name    = c.name || `<span style="color:var(--muted);font-family:monospace;font-size:.8rem">${c.mac}</span>`;
@@ -179,7 +216,11 @@ function renderClients(clients, wired, wireless, total, query) {
       </div>
       ${rows ? `<table>
         <thead><tr>
-          <th>Name / MAC</th><th>IP</th><th>Type / SSID</th><th>VLAN</th><th>Signal</th><th class="num">Uptime</th>
+          ${CLIENT_SORT_COLUMNS.map(col => {
+            const active = sort.key === col.key;
+            const arrow  = active ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+            return `<th class="${col.numClass || ''} sortable${active ? ' sort-active' : ''}" data-sort-key="${col.key}">${col.label}${arrow}</th>`;
+          }).join('')}
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>` : `<div class="empty">${emptyMsg}</div>`}
@@ -187,6 +228,7 @@ function renderClients(clients, wired, wireless, total, query) {
 }
 
 let clientSearchQuery = '';
+let clientSort = { key: 'name', dir: 'asc' };
 let lastClientData = { clients: [], wired: 0, wireless: 0, total: 0 };
 
 function renderClientsSection() {
@@ -198,19 +240,30 @@ function renderClientsSection() {
 
   clientsEl.innerHTML = renderClients(
     lastClientData.clients, lastClientData.wired, lastClientData.wireless,
-    lastClientData.total, clientSearchQuery
+    lastClientData.total, clientSearchQuery, clientSort
   );
 
   const input = document.getElementById('net-client-search');
-  if (!input) return;
-  input.addEventListener('input', e => {
-    clientSearchQuery = e.target.value;
-    renderClientsSection();
-  });
-  if (hadFocus) {
-    input.focus();
-    input.setSelectionRange(selStart, selEnd);
+  if (input) {
+    input.addEventListener('input', e => {
+      clientSearchQuery = e.target.value;
+      renderClientsSection();
+    });
+    if (hadFocus) {
+      input.focus();
+      input.setSelectionRange(selStart, selEnd);
+    }
   }
+
+  clientsEl.querySelectorAll('th[data-sort-key]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sortKey;
+      clientSort = key === clientSort.key
+        ? { key, dir: clientSort.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: 'asc' };
+      renderClientsSection();
+    });
+  });
 }
 
 async function loadNetworkStatus() {

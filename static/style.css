@@ -88,6 +88,9 @@ h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: var(--mute
 
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; padding: .65rem 1rem; font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border); }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--text); }
+th.sort-active { color: var(--accent); }
 td { padding: .7rem 1rem; font-size: .875rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: rgba(255,255,255,.02); }
