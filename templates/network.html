@@ -131,7 +131,7 @@ function signalClass(dbm) {
 }
 
 const WAN_LABELS = { WAN: 'WAN1 (Primary)', WAN2: 'WAN2 (Backup)' };
-const WAN_UPTIME_DAYS = 7;
+const WAN_UPTIME_HOURS = 24;
 
 function wanBlockColor(availability) {
   if (availability == null) return 'var(--border)';
@@ -143,7 +143,7 @@ function wanBlockColor(availability) {
 function renderWanUptimeRow(wanKey, hourlyByTs) {
   const nowHour = Math.floor(Date.now() / 1000 / 3600) * 3600;
   const blocks = [];
-  for (let h = WAN_UPTIME_DAYS * 24 - 1; h >= 0; h--) {
+  for (let h = WAN_UPTIME_HOURS - 1; h >= 0; h--) {
     const ts = nowHour - h * 3600;
     const sample = hourlyByTs[ts];
     const color = wanBlockColor(sample ? sample.availability : null);
@@ -168,7 +168,7 @@ function renderWanUptime(data) {
 
   if (wanKeys.length === 0) {
     return `<div class="wan-uptime-section">
-      <div class="wan-uptime-title">Internet Uptime (${WAN_UPTIME_DAYS}d)</div>
+      <div class="wan-uptime-title">Internet Uptime (${WAN_UPTIME_HOURS}h)</div>
       <div class="empty" style="padding:.5rem 0">Building uptime history — check back in a few hours.</div>
     </div>`;
   }
@@ -180,7 +180,7 @@ function renderWanUptime(data) {
   }).join('');
 
   return `<div class="wan-uptime-section">
-    <div class="wan-uptime-title">Internet Uptime (${WAN_UPTIME_DAYS}d)</div>
+    <div class="wan-uptime-title">Internet Uptime (${WAN_UPTIME_HOURS}h)</div>
     ${rows}
   </div>`;
 }

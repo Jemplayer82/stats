@@ -900,7 +900,7 @@ _start_wan_poller()
 
 @app.route('/api/wan-uptime-history')
 def api_wan_uptime_history():
-    days = 7
+    days = 1
     since = int(time.time()) - days * 86400
     samples = db.session.scalars(
         db.select(WanSample).where(WanSample.ts >= since).order_by(WanSample.ts)
