@@ -16,6 +16,7 @@
 | Proxmox | VM and container status, CPU, memory, disk |
 | Ceph | Cluster health, capacity, OSD status, throughput |
 | TrueNAS SCALE | Pool health, alerts, network traffic |
+| UniFi Network | Devices, clients, and WAN uptime/latency history |
 
 Credentials are stored locally in a SQLite database and managed through the built-in settings page — nothing leaves your machine.
 
@@ -67,8 +68,14 @@ Open `http://<your-host>:5000/settings` and enter credentials for the services y
 | Google Gemini | Cloud service account JSON or API key |
 | Proxmox | API token (`user@realm!tokenid` + secret) |
 | TrueNAS SCALE | API key from the TrueNAS web UI |
+| UniFi Network | **API key** (preferred) — or controller username/password |
 
 Save and return to the dashboard — each service card populates automatically.
+
+> **UniFi auth:** prefer an **API key** (UniFi → Settings → Control Plane → Integrations).
+> It's stateless — sent as the `X-API-KEY` header with no login call — so it can't trip
+> UniFi OS's login-attempt rate limit the way repeated username/password logins do. Username
+> and password still work as a fallback when no key is set.
 
 ---
 
