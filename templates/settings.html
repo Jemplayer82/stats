@@ -81,12 +81,19 @@
   <h3>UniFi Network</h3>
 
   <label>Controller URL
-    <input type="text" name="unifi_host" value="{{ unifi_host }}" placeholder="https://192.168.1.122" />
-    <span class="hint">IP or hostname of your UniFi OS Server, UDM, or UDM Pro. Include <code>https://</code>.</span>
+    <input type="text" name="unifi_host" value="{{ unifi_host }}" placeholder="https://192.168.1.122:11443" />
+    <span class="hint">IP or hostname of your UniFi OS Server, UDM, or UDM Pro. Include <code>https://</code> and the port (UOS Server is <code>:11443</code>).</span>
+  </label>
+
+  <label>API Key
+    <input type="password" name="unifi_api_key"
+           placeholder="{% if has_unifi_api_key %}saved — paste to replace{% else %}paste your UniFi API key{% endif %}" />
+    <span class="hint"><strong>Preferred.</strong> Stateless — avoids the login rate-limit that username/password auth trips. Generate in <strong>UniFi → Settings → Control Plane → Integrations</strong>. Leave blank to keep existing.</span>
   </label>
 
   <label>Username
     <input type="text" name="unifi_username" value="{{ unifi_username }}" placeholder="admin" />
+    <span class="hint">Fallback only — used when no API key is set.</span>
   </label>
 
   <label>Password

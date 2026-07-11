@@ -142,10 +142,12 @@ def settings():
         if truenas_api_key: set_config(CONFIG_TRUENAS_API_KEY, truenas_api_key)
 
         unifi_host     = request.form.get(CONFIG_UNIFI_HOST, '').strip()
+        unifi_api_key  = request.form.get(CONFIG_UNIFI_API_KEY, '').strip()
         unifi_username = request.form.get(CONFIG_UNIFI_USERNAME, '').strip()
         unifi_password = request.form.get(CONFIG_UNIFI_PASSWORD, '').strip()
         unifi_site     = request.form.get(CONFIG_UNIFI_SITE, '').strip()
         if unifi_host:     set_config(CONFIG_UNIFI_HOST, unifi_host)
+        if unifi_api_key:  set_config(CONFIG_UNIFI_API_KEY, unifi_api_key)
         if unifi_username: set_config(CONFIG_UNIFI_USERNAME, unifi_username)
         if unifi_password: set_config(CONFIG_UNIFI_PASSWORD, unifi_password)
         if unifi_site:     set_config(CONFIG_UNIFI_SITE, unifi_site)
@@ -164,6 +166,7 @@ def settings():
                            unifi_host=get_config(CONFIG_UNIFI_HOST, ''),
                            unifi_username=get_config(CONFIG_UNIFI_USERNAME, ''),
                            unifi_site=get_config(CONFIG_UNIFI_SITE, ''),
+                           has_unifi_api_key=bool(get_config(CONFIG_UNIFI_API_KEY, '')),
                            has_unifi_password=bool(get_config(CONFIG_UNIFI_PASSWORD, '')))
 
 
@@ -729,17 +732,31 @@ def _unifi_login(host, username, password):
     return s, '', ''
 
 
+# UniFi OS proxies the Network application under this path prefix.
+_UNIFI_NETWORK_PREFIX = '/proxy/network'
+
 # Logging in on every single call (every 30s page poll + every 5min bg poll)
 # was enough concurrent session churn to trip UniFi OS's login rate-limit,
 # causing intermittent 401s. Cache one session per worker process and only
-# re-login when it actually stops working.
+# re-login when it actually stops working. The real fix is an API key (below),
+# which is stateless and never hits the login endpoint at all.
 _unifi_session_cache = {}
 _unifi_session_lock = threading.Lock()
 
 
-def _unifi_get(host, username, password, path):
-    """GET an authenticated UniFi API path, reusing a cached session and
-    re-logging in (once) only if the cached session has actually expired."""
+def _unifi_get(host, path, api_key='', username='', password=''):
+    """GET an authenticated UniFi Network API path.
+
+    Preferred: an API key sent as X-API-KEY. It's stateless — no login call —
+    so it can never trip UniFi OS's login-attempt rate limit (which otherwise
+    locks out every consumer of the same account). Falls back to a cached
+    username/password session only when no key is configured."""
+    if api_key:
+        return http.get(f"{host}{_UNIFI_NETWORK_PREFIX}{path}",
+                        headers={'X-API-KEY': api_key, 'Accept': 'application/json'},
+                        timeout=15, verify=False)
+
+    # No API key — legacy session login. Churns logins; kept for back-compat.
     def do_request():
         with _unifi_session_lock:
             cached = _unifi_session_cache.get(host)
@@ -761,23 +778,24 @@ def _unifi_get(host, username, password, path):
 @app.route('/api/unifi-status')
 def api_unifi_status():
     host     = get_config(CONFIG_UNIFI_HOST, '')
+    api_key  = get_config(CONFIG_UNIFI_API_KEY, '')
     username = get_config(CONFIG_UNIFI_USERNAME, '')
     password = get_config(CONFIG_UNIFI_PASSWORD, '')
     site     = get_config(CONFIG_UNIFI_SITE, '') or 'default'
 
-    if not all([host, username, password]):
+    if not host or not (api_key or (username and password)):
         return jsonify({'error': ErrorCode.INCOMPLETE_CONFIG}), 200
 
     if not host.startswith('http'):
         host = f'https://{host}'
 
     try:
-        r = _unifi_get(host, username, password, f"/api/s/{site}/stat/device")
+        r = _unifi_get(host, f"/api/s/{site}/stat/device", api_key, username, password)
         if not r.ok:
             return jsonify({'error': ErrorCode.API_ERROR, 'details': f"devices: HTTP {r.status_code}"}), 200
         devices_raw = r.json().get('data', [])
 
-        r = _unifi_get(host, username, password, f"/api/s/{site}/stat/sta")
+        r = _unifi_get(host, f"/api/s/{site}/stat/sta", api_key, username, password)
         clients_raw = r.json().get('data', []) if r.ok else []
 
         SKIP_FS = {'vfat', 'erofs', 'tmpfs', 'devtmpfs', 'squashfs', 'iso9660', 'zram'}
@@ -863,16 +881,17 @@ WAN_POLL_INTERVAL_S = 300  # 5 minutes
 
 def _poll_wan_uptime_once():
     host     = get_config(CONFIG_UNIFI_HOST, '')
+    api_key  = get_config(CONFIG_UNIFI_API_KEY, '')
     username = get_config(CONFIG_UNIFI_USERNAME, '')
     password = get_config(CONFIG_UNIFI_PASSWORD, '')
     site     = get_config(CONFIG_UNIFI_SITE, '') or 'default'
-    if not all([host, username, password]):
+    if not host or not (api_key or (username and password)):
         return
 
     if not host.startswith('http'):
         host = f'https://{host}'
 
-    r = _unifi_get(host, username, password, f"/api/s/{site}/stat/health")
+    r = _unifi_get(host, f"/api/s/{site}/stat/health", api_key, username, password)
     r.raise_for_status()
 
     wan_health = next((s for s in r.json().get('data', []) if s.get('subsystem') == 'wan'), None)
