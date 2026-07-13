@@ -528,7 +528,9 @@ a.server-link:hover { opacity: .85; }
 .tn-vms-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: .4rem; }
 .tn-vms-title { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; opacity: .65; }
 .tn-vms-count { font-size: .72rem; opacity: .65; }
-.tn-vm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; margin-bottom: 1rem; }
+/* Match the Proxmox VM card width (~283px) by filling columns instead of
+   forcing 2 across the full-width TrueNAS section. */
+.tn-vm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(265px, 1fr)); gap: .5rem; margin-bottom: 1rem; align-items: start; }
 
 /* Pool status badges */
 .badge-online  { background: rgba(16,185,129,.2); color: var(--green); }
