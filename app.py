@@ -532,13 +532,15 @@ def api_truenas_status():
             # total logical CPUs = sockets(vcpus) × cores × threads
             total_cpu = (v.get('vcpus') or 1) * (v.get('cores') or 1) * (v.get('threads') or 1)
             return {
-                'id':        v.get('id'),
-                'name':      v.get('name', ''),
-                'type':      'VM',
-                'status':    (st.get('state') if isinstance(st, dict) else st),
-                'cpu':       total_cpu,
-                'memory':    (v.get('memory') or 0) * 1024 * 1024,  # legacy vm.memory is MiB
-                'autostart': v.get('autostart'),
+                'id':         v.get('id'),
+                'name':       v.get('name', ''),
+                'type':       'VM',
+                'status':     (st.get('state') if isinstance(st, dict) else st),
+                'cpu':        total_cpu,
+                'memory':     (v.get('memory') or 0) * 1024 * 1024,  # legacy vm.memory is MiB
+                'autostart':  v.get('autostart'),
+                'bootloader': v.get('bootloader'),
+                'cpu_mode':   v.get('cpu_mode'),
             }
 
         # TrueNAS 25.04 runs VMs as Incus instances (virt.instance); older

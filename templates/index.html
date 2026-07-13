@@ -602,6 +602,8 @@ async function loadTrueNASStatus() {
               <div class="px-stats">
                 <div class="px-stat-row"><span class="px-label">CPU</span><span class="px-value">${v.cpu != null ? v.cpu + ' vCPU' : '-'}</span></div>
                 <div class="px-stat-row"><span class="px-label">RAM</span><span class="px-value">${v.memory ? formatBytes(v.memory) : '-'}</span></div>
+                ${v.bootloader ? `<div class="px-stat-row"><span class="px-label">Boot</span><span class="px-value">${v.bootloader}</span></div>` : ''}
+                ${v.cpu_mode ? `<div class="px-stat-row"><span class="px-label">CPU mode</span><span class="px-value">${v.cpu_mode.replace(/-/g,' ').toLowerCase()}</span></div>` : ''}
                 <div class="px-stat-row"><span class="px-label">Autostart</span><span class="px-value">${v.autostart ? 'yes' : 'no'}</span></div>
               </div>
               <div class="px-status ${running ? 'on' : 'off'}">${(v.status || '?').toString().toLowerCase()}</div>
