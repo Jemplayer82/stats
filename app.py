@@ -512,38 +512,45 @@ def api_truenas_status():
         # plain string so the frontend can treat both the same.
         vms = []
         vms_error = None
-        raw_vms = None
+        raw_virt = None
+        raw_vm = None
+
+        def _norm_virt(v):
+            st = v.get('status')
+            return {
+                'name':      v.get('name') or v.get('id', ''),
+                'type':      v.get('type', 'VM'),
+                'status':    (st.get('state') if isinstance(st, dict) else st),
+                'cpu':       v.get('cpu') or v.get('vcpus'),
+                'memory':    v.get('memory'),
+                'autostart': v.get('autostart'),
+            }
+
+        def _norm_vm(v):
+            st = v.get('status') or {}
+            return {
+                'name':      v.get('name', ''),
+                'type':      'VM',
+                'status':    (st.get('state') if isinstance(st, dict) else st),
+                'cpu':       v.get('vcpus'),
+                'memory':    (v.get('memory') or 0) * 1024 * 1024,  # legacy vm.memory is MiB
+                'autostart': v.get('autostart'),
+            }
+
+        # TrueNAS 25.04 runs VMs as Incus instances (virt.instance); older
+        # releases (and un-migrated 25.04 boxes) still use the KVM `vm` API.
+        # Fall back to `vm` whenever virt/instance yields nothing, not only on error.
         try:
-            raw_vms = _truenas_api(host, api_key, 'virt/instance')
-            for v in (raw_vms or []):
-                if not isinstance(v, dict):
-                    continue
-                st = v.get('status')
-                vms.append({
-                    'name':      v.get('name') or v.get('id', ''),
-                    'type':      v.get('type', 'VM'),
-                    'status':    (st.get('state') if isinstance(st, dict) else st),
-                    'cpu':       v.get('cpu') or v.get('vcpus'),
-                    'memory':    v.get('memory'),
-                    'autostart': v.get('autostart'),
-                })
-        except Exception as ve:
+            raw_virt = _truenas_api(host, api_key, 'virt/instance')
+            vms += [_norm_virt(v) for v in (raw_virt or []) if isinstance(v, dict)]
+        except Exception as e:
+            vms_error = f'virt/instance: {e}'
+        if not vms:
             try:
-                raw_vms = _truenas_api(host, api_key, 'vm')
-                for v in (raw_vms or []):
-                    if not isinstance(v, dict):
-                        continue
-                    st = v.get('status') or {}
-                    vms.append({
-                        'name':      v.get('name', ''),
-                        'type':      'VM',
-                        'status':    (st.get('state') if isinstance(st, dict) else st),
-                        'cpu':       v.get('vcpus'),
-                        'memory':    (v.get('memory') or 0) * 1024 * 1024,  # legacy = MiB
-                        'autostart': v.get('autostart'),
-                    })
-            except Exception:
-                vms_error = str(ve)
+                raw_vm = _truenas_api(host, api_key, 'vm')
+                vms += [_norm_vm(v) for v in (raw_vm or []) if isinstance(v, dict)]
+            except Exception as e:
+                vms_error = (vms_error + ' | ' if vms_error else '') + f'vm: {e}'
 
         sysinfo = sysinfo if isinstance(sysinfo, dict) else {}
         resp = {
@@ -558,7 +565,10 @@ def api_truenas_status():
             'version':   sysinfo.get('version', ''),
         }
         if request.args.get('debug'):
-            resp['vms_sample'] = (raw_vms or [])[:1]
+            resp['virt_sample'] = (raw_virt or [])[:1]
+            resp['vm_sample']   = (raw_vm or [])[:1]
+            resp['virt_count']  = len(raw_virt or [])
+            resp['vm_count']    = len(raw_vm or [])
         return jsonify(resp)
     except Exception as e:
         return jsonify({
