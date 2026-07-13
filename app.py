@@ -458,9 +458,10 @@ def api_truenas_status():
 
     try:
         active_alerts = [
-            {'level': a['level'], 'text': a.get('formatted', a.get('text', ''))}
+            {'uuid': a.get('uuid'), 'level': a['level'], 'text': a.get('formatted', a.get('text', ''))}
             for a in alerts
             if isinstance(a, dict) and a.get('level') in ('CRITICAL', 'WARNING')
+            and not a.get('dismissed')
         ]
 
         pool_list = []
@@ -524,6 +525,55 @@ def api_truenas_status():
             'alerts_type': type(alerts).__name__,
             'sysinfo_type': type(sysinfo).__name__,
         }), 200
+
+
+def _truenas_dismiss(host, api_key, uuid):
+    """Dismiss a single TrueNAS alert by uuid.
+
+    The alert.dismiss REST contract has been reported inconsistently in the
+    wild (raw-string body vs a {"uuid": ...} object) — the middleware method
+    takes a single Str('uuid') arg, so the raw string is the documented form,
+    but we fall back to the object form if a given version rejects it. Returns
+    True on success, raises the last HTTP error if both forms fail."""
+    url  = f'https://{host}/api/v2.0/alert/dismiss'
+    hdrs = {'Authorization': f'Bearer {api_key}'}
+    last = None
+    for payload in (uuid, {'uuid': uuid}):
+        last = http.post(url, headers=hdrs, json=payload, timeout=(5, 5), verify=False)
+        if last.ok:
+            return True
+    last.raise_for_status()
+    return False
+
+
+@app.route('/api/truenas-dismiss', methods=['POST'])
+def api_truenas_dismiss():
+    host    = get_config(CONFIG_TRUENAS_HOST, '')
+    api_key = get_config(CONFIG_TRUENAS_API_KEY, '')
+    if not all([host, api_key]):
+        return jsonify({'error': ErrorCode.INCOMPLETE_CONFIG}), 200
+
+    host = re.sub(r'^https?://', '', host).rstrip('/')
+    data = request.get_json(silent=True) or {}
+    uuid    = str(data.get('uuid', '')).strip()
+    do_all  = data.get('all') in (True, 'true', '1', 1)
+
+    try:
+        if do_all:
+            alerts = _truenas_api(host, api_key, 'alert/list')
+            targets = [a['uuid'] for a in alerts
+                       if isinstance(a, dict) and a.get('uuid')
+                       and a.get('level') in ('CRITICAL', 'WARNING')
+                       and not a.get('dismissed')]
+        elif uuid:
+            targets = [uuid]
+        else:
+            return jsonify({'error': 'no_uuid'}), 400
+
+        dismissed = sum(1 for u in targets if _truenas_dismiss(host, api_key, u))
+        return jsonify({'ok': True, 'dismissed': dismissed, 'requested': len(targets)})
+    except Exception as e:
+        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
 
 
 # ---------------------------------------------------------------------------

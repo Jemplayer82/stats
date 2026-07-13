@@ -575,9 +575,14 @@ async function loadTrueNASStatus() {
 
     const alertsHtml = data.alerts.length === 0 ? '' : `
       <div class="truenas-alerts">
+        <div class="truenas-alerts-head">
+          <span class="tn-alerts-count">${data.alerts.length} fault${data.alerts.length > 1 ? 's' : ''}</span>
+          <button class="tn-alert-clearall" title="Acknowledge all on TrueNAS" onclick="dismissTrueNAS('all', this)">Clear all</button>
+        </div>
         ${data.alerts.map(a => `
           <div class="truenas-alert ${a.level === 'CRITICAL' ? 'danger' : 'warn'}">
-            <strong>${a.level}</strong> ${a.text}
+            <span class="tn-alert-text"><strong>${a.level}</strong> ${a.text}</span>
+            ${a.uuid ? `<button class="tn-alert-x" title="Acknowledge on TrueNAS" onclick="dismissTrueNAS('${a.uuid}', this)">✕</button>` : ''}
           </div>`).join('')}
       </div>`;
 
@@ -612,6 +617,31 @@ async function loadTrueNASStatus() {
   } catch (e) {
     document.getElementById('truenas-sub').innerHTML = `<span class="px-status off" style="position:static;border-radius:4px">error</span>`;
   }
+}
+
+// Acknowledge a TrueNAS alert (or all) via alert/dismiss, then refresh the card.
+async function dismissTrueNAS(uuid, btn) {
+  const original = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const res = await fetch('/api/truenas-dismiss', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(uuid === 'all' ? { all: true } : { uuid }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      if (btn) { btn.disabled = false; btn.textContent = original; }
+      alert('Dismiss failed: ' + (data.details || data.error) +
+            (data.error === 'api_error' ? '\n(the TrueNAS API key may be read-only)' : ''));
+      return;
+    }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = original; }
+    alert('Dismiss failed: ' + e.message);
+    return;
+  }
+  loadTrueNASStatus();
 }
 
 async function loadCephStatus() {

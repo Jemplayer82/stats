@@ -504,9 +504,25 @@ a.server-link:hover { opacity: .85; }
 
 /* TrueNAS alerts */
 .truenas-alerts { margin-bottom: 1rem; display: flex; flex-direction: column; gap: .4rem; }
-.truenas-alert  { padding: .4rem .75rem; border-radius: 6px; font-size: .82rem; }
+.truenas-alert  { padding: .4rem .75rem; border-radius: 6px; font-size: .82rem; display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
 .truenas-alert.danger { background: rgba(239,68,68,.1); border-left: 3px solid var(--red); color: var(--text); }
 .truenas-alert.warn   { background: rgba(245,158,11,.1); border-left: 3px solid #f59e0b; color: var(--text); }
+.tn-alert-text { flex: 1; min-width: 0; }
+
+/* Alert acknowledge (dismiss) controls */
+.truenas-alerts-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .1rem; }
+.tn-alerts-count { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; opacity: .65; }
+.tn-alert-clearall {
+  background: transparent; border: 1px solid var(--border); color: var(--text);
+  font-size: .72rem; padding: .15rem .5rem; border-radius: 5px; cursor: pointer; opacity: .8;
+}
+.tn-alert-clearall:hover:not(:disabled) { opacity: 1; border-color: var(--red); color: var(--red); }
+.tn-alert-x {
+  background: transparent; border: none; color: var(--text); opacity: .5;
+  font-size: .85rem; line-height: 1; padding: 0 .15rem; cursor: pointer; flex: none;
+}
+.tn-alert-x:hover:not(:disabled) { opacity: 1; color: var(--red); }
+.tn-alert-x:disabled, .tn-alert-clearall:disabled { cursor: default; opacity: .4; }
 
 /* Pool status badges */
 .badge-online  { background: rgba(16,185,129,.2); color: var(--green); }
