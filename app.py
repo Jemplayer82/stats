@@ -568,6 +568,18 @@ def api_truenas_status():
             'hostname':  sysinfo.get('hostname', ''),
             'version':   sysinfo.get('version', ''),
         }
+        if request.args.get('vmprobe'):
+            probe = {}
+            try:
+                graphs = _truenas_api(host, api_key, 'reporting/graphs')
+                probe['graphs'] = [
+                    {'name': g.get('name'), 'title': g.get('title'),
+                     'idents': (g.get('identifiers') or [])[:12]}
+                    for g in (graphs or []) if isinstance(g, dict)
+                ]
+            except Exception as e:
+                probe['graphs_error'] = str(e)
+            resp['vmprobe'] = probe
         return jsonify(resp)
     except Exception as e:
         return jsonify({
