@@ -518,6 +518,7 @@ def api_truenas_status():
         def _norm_virt(v):
             st = v.get('status')
             return {
+                'id':        None,  # Incus instances are keyed by name, no numeric id
                 'name':      v.get('name') or v.get('id', ''),
                 'type':      v.get('type', 'VM'),
                 'status':    (st.get('state') if isinstance(st, dict) else st),
@@ -531,6 +532,7 @@ def api_truenas_status():
             # total logical CPUs = sockets(vcpus) × cores × threads
             total_cpu = (v.get('vcpus') or 1) * (v.get('cores') or 1) * (v.get('threads') or 1)
             return {
+                'id':        v.get('id'),
                 'name':      v.get('name', ''),
                 'type':      'VM',
                 'status':    (st.get('state') if isinstance(st, dict) else st),

@@ -588,21 +588,23 @@ async function loadTrueNASStatus() {
 
     const runningVms = (data.vms || []).filter(v => String(v.status).toUpperCase() === 'RUNNING').length;
     const vmsHtml = (!data.vms || data.vms.length === 0) ? '' : `
-      <div class="tn-vms">
-        <div class="tn-vms-head">
-          <span class="tn-vms-title">Instances</span>
-          <span class="tn-vms-count">${runningVms}/${data.vms.length} running</span>
-        </div>
+      <div class="tn-vms-head">
+        <span class="tn-vms-title">Instances</span>
+        <span class="tn-vms-count">${runningVms}/${data.vms.length} running</span>
+      </div>
+      <div class="tn-vm-grid">
         ${data.vms.map(v => {
           const running = String(v.status).toUpperCase() === 'RUNNING';
           return `
-            <div class="tn-vm">
-              <span class="tn-vm-name">${v.name}${v.type ? ` <span class="tn-vm-type">${v.type}</span>` : ''}</span>
-              <span class="tn-vm-right">
-                ${v.cpu ? `<span class="tn-vm-spec">${v.cpu} vCPU</span>` : ''}
-                ${v.memory ? `<span class="tn-vm-spec">${formatBytes(v.memory)}</span>` : ''}
-                <span class="badge ${running ? 'badge-online' : 'badge-offline'}">${(v.status || '?').toString().toLowerCase()}</span>
-              </span>
+            <div class="px-card ${!running ? 'is-off' : ''}">
+              <div class="px-top"><span class="px-type">🖥️ ${v.type || 'VM'}</span></div>
+              <div class="px-name">${v.name || ''}${v.id != null ? ` <small>#${v.id}</small>` : ''}</div>
+              <div class="px-stats">
+                <div class="px-stat-row"><span class="px-label">CPU</span><span class="px-value">${v.cpu != null ? v.cpu + ' vCPU' : '-'}</span></div>
+                <div class="px-stat-row"><span class="px-label">RAM</span><span class="px-value">${v.memory ? formatBytes(v.memory) : '-'}</span></div>
+                <div class="px-stat-row"><span class="px-label">Autostart</span><span class="px-value">${v.autostart ? 'yes' : 'no'}</span></div>
+              </div>
+              <div class="px-status ${running ? 'on' : 'off'}">${(v.status || '?').toString().toLowerCase()}</div>
             </div>`;
         }).join('')}
       </div>`;

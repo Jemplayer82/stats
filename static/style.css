@@ -524,23 +524,11 @@ a.server-link:hover { opacity: .85; }
 .tn-alert-x:hover:not(:disabled) { opacity: 1; color: var(--red); }
 .tn-alert-x:disabled, .tn-alert-clearall:disabled { cursor: default; opacity: .4; }
 
-/* TrueNAS VMs / Incus instances */
-.tn-vms { margin-bottom: 1rem; display: flex; flex-direction: column; gap: .3rem; }
-.tn-vms-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: .15rem; }
+/* TrueNAS VMs — reuse the Proxmox .px-card look */
+.tn-vms-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: .4rem; }
 .tn-vms-title { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; opacity: .65; }
 .tn-vms-count { font-size: .72rem; opacity: .65; }
-.tn-vm {
-  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
-  padding: .35rem .6rem; border-radius: 6px; font-size: .82rem;
-  background: var(--bg); border: 1px solid var(--border);
-}
-.tn-vm-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tn-vm-type {
-  font-size: .62rem; text-transform: uppercase; letter-spacing: .03em;
-  opacity: .55; border: 1px solid var(--border); border-radius: 3px; padding: 0 .25rem; margin-left: .25rem;
-}
-.tn-vm-right { display: flex; align-items: center; gap: .5rem; flex: none; }
-.tn-vm-spec { font-size: .72rem; opacity: .7; white-space: nowrap; }
+.tn-vm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; margin-bottom: 1rem; }
 
 /* Pool status badges */
 .badge-online  { background: rgba(16,185,129,.2); color: var(--green); }
