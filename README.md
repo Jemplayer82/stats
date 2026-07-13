@@ -15,7 +15,7 @@
 | Google Gemini | API request counts via Cloud Monitoring |
 | Proxmox | VM and container status, CPU, memory, disk |
 | Ceph | Cluster health, capacity, OSD status, throughput |
-| TrueNAS SCALE | Pool health, alerts, network traffic |
+| TrueNAS SCALE | Pool health, VMs, network traffic, and acknowledgeable alerts |
 | UniFi Network | Devices, clients, and WAN uptime/latency history |
 
 Credentials are stored locally in a SQLite database and managed through the built-in settings page — nothing leaves your machine.
