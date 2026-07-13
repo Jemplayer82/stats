@@ -528,11 +528,13 @@ def api_truenas_status():
 
         def _norm_vm(v):
             st = v.get('status') or {}
+            # total logical CPUs = sockets(vcpus) × cores × threads
+            total_cpu = (v.get('vcpus') or 1) * (v.get('cores') or 1) * (v.get('threads') or 1)
             return {
                 'name':      v.get('name', ''),
                 'type':      'VM',
                 'status':    (st.get('state') if isinstance(st, dict) else st),
-                'cpu':       v.get('vcpus'),
+                'cpu':       total_cpu,
                 'memory':    (v.get('memory') or 0) * 1024 * 1024,  # legacy vm.memory is MiB
                 'autostart': v.get('autostart'),
             }
@@ -564,11 +566,6 @@ def api_truenas_status():
             'hostname':  sysinfo.get('hostname', ''),
             'version':   sysinfo.get('version', ''),
         }
-        if request.args.get('debug'):
-            resp['virt_sample'] = (raw_virt or [])[:1]
-            resp['vm_sample']   = (raw_vm or [])[:1]
-            resp['virt_count']  = len(raw_virt or [])
-            resp['vm_count']    = len(raw_vm or [])
         return jsonify(resp)
     except Exception as e:
         return jsonify({
