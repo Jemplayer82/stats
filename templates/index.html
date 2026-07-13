@@ -586,6 +586,27 @@ async function loadTrueNASStatus() {
           </div>`).join('')}
       </div>`;
 
+    const runningVms = (data.vms || []).filter(v => String(v.status).toUpperCase() === 'RUNNING').length;
+    const vmsHtml = (!data.vms || data.vms.length === 0) ? '' : `
+      <div class="tn-vms">
+        <div class="tn-vms-head">
+          <span class="tn-vms-title">Instances</span>
+          <span class="tn-vms-count">${runningVms}/${data.vms.length} running</span>
+        </div>
+        ${data.vms.map(v => {
+          const running = String(v.status).toUpperCase() === 'RUNNING';
+          return `
+            <div class="tn-vm">
+              <span class="tn-vm-name">${v.name}${v.type ? ` <span class="tn-vm-type">${v.type}</span>` : ''}</span>
+              <span class="tn-vm-right">
+                ${v.cpu ? `<span class="tn-vm-spec">${v.cpu} vCPU</span>` : ''}
+                ${v.memory ? `<span class="tn-vm-spec">${formatBytes(v.memory)}</span>` : ''}
+                <span class="badge ${running ? 'badge-online' : 'badge-offline'}">${(v.status || '?').toString().toLowerCase()}</span>
+              </span>
+            </div>`;
+        }).join('')}
+      </div>`;
+
     const poolsHtml = data.pools.map(p => {
       const usedPct = p.size > 0 ? Math.round(p.allocated / p.size * 100) : 0;
       return `
@@ -604,7 +625,7 @@ async function loadTrueNASStatus() {
 
     const sparkHtml = data.network ? buildSparkline(data.network) : '';
 
-    content.innerHTML = healthHtml + alertsHtml + `
+    content.innerHTML = healthHtml + alertsHtml + vmsHtml + `
       <div class="tn-bottom-row">
         <div class="tn-spark-col">
           <div class="tn-spark-wrap">

@@ -506,16 +506,60 @@ def api_truenas_status():
         except Exception:
             pass
 
+        # VMs — TrueNAS 25.04 (Fangtooth) runs them as Incus "instances"
+        # (virt.instance); older releases used the KVM `vm` API. Try the new
+        # one first and fall back, normalising memory to bytes and status to a
+        # plain string so the frontend can treat both the same.
+        vms = []
+        vms_error = None
+        raw_vms = None
+        try:
+            raw_vms = _truenas_api(host, api_key, 'virt/instance')
+            for v in (raw_vms or []):
+                if not isinstance(v, dict):
+                    continue
+                st = v.get('status')
+                vms.append({
+                    'name':      v.get('name') or v.get('id', ''),
+                    'type':      v.get('type', 'VM'),
+                    'status':    (st.get('state') if isinstance(st, dict) else st),
+                    'cpu':       v.get('cpu') or v.get('vcpus'),
+                    'memory':    v.get('memory'),
+                    'autostart': v.get('autostart'),
+                })
+        except Exception as ve:
+            try:
+                raw_vms = _truenas_api(host, api_key, 'vm')
+                for v in (raw_vms or []):
+                    if not isinstance(v, dict):
+                        continue
+                    st = v.get('status') or {}
+                    vms.append({
+                        'name':      v.get('name', ''),
+                        'type':      'VM',
+                        'status':    (st.get('state') if isinstance(st, dict) else st),
+                        'cpu':       v.get('vcpus'),
+                        'memory':    (v.get('memory') or 0) * 1024 * 1024,  # legacy = MiB
+                        'autostart': v.get('autostart'),
+                    })
+            except Exception:
+                vms_error = str(ve)
+
         sysinfo = sysinfo if isinstance(sysinfo, dict) else {}
-        return jsonify({
-            'ok':       True,
-            'pools':    pool_list,
-            'alerts':   active_alerts,
-            'network':  network,
-            'uptime':   sysinfo.get('uptime_seconds', 0),
-            'hostname': sysinfo.get('hostname', ''),
-            'version':  sysinfo.get('version', ''),
-        })
+        resp = {
+            'ok':        True,
+            'pools':     pool_list,
+            'alerts':    active_alerts,
+            'vms':       vms,
+            'vms_error': vms_error,
+            'network':   network,
+            'uptime':    sysinfo.get('uptime_seconds', 0),
+            'hostname':  sysinfo.get('hostname', ''),
+            'version':   sysinfo.get('version', ''),
+        }
+        if request.args.get('debug'):
+            resp['vms_sample'] = (raw_vms or [])[:1]
+        return jsonify(resp)
     except Exception as e:
         return jsonify({
             'error': ErrorCode.PARSE_EXCEPTION,
