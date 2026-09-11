@@ -13,6 +13,7 @@ import time
 import re
 import threading
 import fcntl
+from codex_usage import get_usage as get_codex_usage
 
 # Suppress insecure request warnings for Proxmox (often self-signed)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -107,6 +108,17 @@ def index():
 @app.route('/network')
 def network():
     return render_template('network.html')
+
+
+@app.route('/api/codex-usage')
+def api_codex_usage():
+    try:
+        payload = get_codex_usage()
+    except OSError:
+        payload = {'error': 'storage_unavailable'}
+    response = jsonify(payload)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@
 | Service | Data Shown |
 |---------|------------|
 | Claude.ai | Usage quotas and limits |
+| Codex / ChatGPT | Usage windows, reset countdowns, and daily token history when available |
 | Ollama.com | Bandwidth and resource utilization |
 | Google Gemini | API request counts via Cloud Monitoring |
 | Proxmox | VM and container status, CPU, memory, disk |
@@ -81,9 +82,44 @@ Save and return to the dashboard — each service card populates automatically.
 
 ## `[ environment variables ]`
 
+### Codex account setup
+
+The image includes a pinned Codex CLI. After pulling the updated image in Portainer,
+open the `stats` container console and run:
+
+```bash
+codex -c 'cli_auth_credentials_store="file"' login --device-auth
+```
+
+Alternatively, on the Docker host:
+
+```bash
+docker exec -it stats codex -c 'cli_auth_credentials_store="file"' login --device-auth
+```
+
+Follow the displayed link and code using your ChatGPT account. Device-code login may
+need enabling in ChatGPT security settings. Credentials live under `CODEX_HOME`,
+which the image sets to `/data/codex` inside the existing persistent `/data` volume.
+Treat that volume as sensitive. No browser cookie or OpenAI API key is needed.
+
+The dashboard reads `account/rateLimits/read` and `account/usage/read` through
+[Codex app-server](https://learn.chatgpt.com/docs/app-server). It never starts a model
+turn. A shared cache refreshes on dashboard access at most once every five minutes
+(failed requests retry after one minute). Login changes invalidate the cache.
+Usage percentages are account-wide; the card uses the actual returned window lengths
+and separate limit buckets. Missing windows are omitted, and unavailable history is
+shown explicitly. The graph shows up to 30 reported days; missing days aren't
+invented as zero. Temporary failures retain previously collected data with a stale
+label and its original timestamp. Only sanitized metrics are returned to the browser.
+
+To reconnect, rerun the login command. To disconnect, run `codex logout` in the
+container. Update the `CODEX_VERSION` Docker build argument when upgrading the CLI;
+older versions may not provide daily history even when quota bars work.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | `sqlite:////data/usage.db` | SQLite path inside the container |
+| `CODEX_HOME` | `/data/codex` (Docker image) | Persistent Codex login and usage cache |
 
 Data is persisted to `/storage/stats` on the host.
 

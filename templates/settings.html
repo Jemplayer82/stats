@@ -4,6 +4,18 @@
 
 <h1>Settings</h1>
 
+<section class="chart-card codex-settings" id="codex">
+  <h2>Codex / ChatGPT</h2>
+  <p>Connect the ChatGPT account whose usage you want to display. In the Stats
+    container console in Portainer, run:</p>
+  <pre><code>codex -c 'cli_auth_credentials_store="file"' login --device-auth</code></pre>
+  <p>Open the link and enter the code shown by Codex. If prompted, enable device
+    code authorization in your ChatGPT security settings, then try again.</p>
+  <p>The login is saved in the persistent data volume. Return to Usage Meters after
+    signing in; the card refreshes within a minute. An OpenAI API key does not
+    provide ChatGPT subscription usage.</p>
+</section>
+
 <form method="POST" class="usage-form">
   <label>Claude.ai Session Cookie
     <input type="password" name="claude_ai_session"

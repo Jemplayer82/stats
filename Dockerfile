@@ -1,4 +1,13 @@
-FROM python:3.11-slim
+FROM node:22-bookworm-slim AS codex
+ARG CODEX_VERSION=0.154.0
+RUN npm install -g @openai/codex@${CODEX_VERSION}
+
+FROM python:3.11-slim-bookworm
+
+COPY --from=codex /usr/local/bin/node /usr/local/bin/node
+COPY --from=codex /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/@openai/codex/bin/codex.js /usr/local/bin/codex
+ENV CODEX_HOME=/data/codex
 
 WORKDIR /app
 
@@ -11,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn==22.0.0
 
 COPY . .
 
-RUN mkdir -p /data
+RUN mkdir -p /data/codex && chmod 700 /data/codex
 
 EXPOSE 5000
 

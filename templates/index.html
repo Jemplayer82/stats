@@ -5,6 +5,14 @@
 <h1>Usage Meters</h1>
 
 <section class="charts-grid">
+  <div class="chart-card" id="codex-usage-card">
+    <div class="chart-header">
+      <span class="chart-title">Codex Usage</span>
+      <span class="chart-sub" id="codex-usage-sub" role="status">loading…</span>
+    </div>
+    <div id="codex-usage-bars"></div>
+    <div id="codex-daily-usage"></div>
+  </div>
   <!-- Claude.ai live usage limit -->
   <div class="chart-card" id="live-usage-card">
     <div class="chart-header">
@@ -758,4 +766,5 @@ setInterval(loadCephStatus, 15_000);
 setInterval(loadTrueNASStatus, 30_000);
 </script>
 
+<script src="{{ url_for('static', filename='codex.js') }}" defer></script>
 {% endblock %}
