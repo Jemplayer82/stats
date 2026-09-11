@@ -5,7 +5,7 @@
 <h1>Usage Meters</h1>
 
 <section class="charts-grid">
-  <div class="chart-card" id="codex-usage-card">
+  <div class="chart-card {% if not show_codex_usage %}meter-hidden{% endif %}" id="codex-usage-card">
     <div class="chart-header">
       <span class="chart-title">Codex Usage</span>
       <span class="chart-sub" id="codex-usage-sub" role="status">loading…</span>
@@ -14,7 +14,7 @@
     <div id="codex-daily-usage"></div>
   </div>
   <!-- Claude.ai live usage limit -->
-  <div class="chart-card" id="live-usage-card">
+  <div class="chart-card {% if not show_claude_usage %}meter-hidden{% endif %}" id="live-usage-card">
     <div class="chart-header">
       <span class="chart-title">Claude.ai Live Usage</span>
       <span class="chart-sub" id="live-usage-sub">loading…</span>
@@ -23,7 +23,7 @@
   </div>
 
   <!-- Ollama.com live usage -->
-  <div class="chart-card" id="ollama-usage-card">
+  <div class="chart-card {% if not show_ollama_usage %}meter-hidden{% endif %}" id="ollama-usage-card">
     <div class="chart-header">
       <span class="chart-title">Ollama.com Usage</span>
       <span class="chart-sub" id="ollama-usage-sub">loading…</span>
@@ -32,7 +32,7 @@
   </div>
 
   <!-- Gemini usage -->
-  <div class="chart-card" id="gemini-usage-card">
+  <div class="chart-card {% if not show_gemini_usage %}meter-hidden{% endif %}" id="gemini-usage-card">
     <div class="chart-header">
       <span class="chart-title">Gemini API Usage (Cloud)</span>
       <span class="chart-sub" id="gemini-usage-sub">loading…</span>

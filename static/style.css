@@ -83,6 +83,31 @@ h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: var(--mute
   margin-bottom: 2.5rem;
 }
 
+.widget-shell {
+  max-width: 430px;
+  margin: 0 auto;
+}
+
+.widget-page {
+  overflow: hidden;
+}
+
+.widget-page nav {
+  display: none;
+}
+
+.widget-page main {
+  padding: .75rem;
+}
+
+.widget-chart-grid {
+  margin: 0;
+}
+
+.widget-chart-grid .chart-card {
+  padding: .9rem 1rem;
+}
+
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -219,6 +244,7 @@ textarea { resize: vertical; }
   border-radius: 10px;
   padding: 1.25rem 1.5rem;
 }
+.meter-hidden { display: none; }
 .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .chart-title  { font-weight: 600; font-size: .9rem; }
 .chart-sub    { font-size: .75rem; color: var(--muted); }
@@ -233,6 +259,22 @@ textarea { resize: vertical; }
 .usage-bar-fill.danger { background: var(--red); }
 .setup-link { color: var(--accent); font-size: .85rem; text-decoration: none; }
 .setup-link:hover { text-decoration: underline; }
+
+.display-settings {
+  display: grid;
+  gap: 0.5rem;
+}
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .85rem;
+  color: var(--text);
+}
+.checkbox-field input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+}
 
 @media (max-width: 640px) {
   .charts-grid { grid-template-columns: 1fr; }

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% set body_class = "widget-page" %}
+{% block title %}Usage Widget{% endblock %}
+
+{% block content %}
+<section class="charts-grid widget-chart-grid">
+  <div class="chart-card {% if not show_codex_usage %}meter-hidden{% endif %}" id="codex-usage-card">
+    <div class="chart-header">
+      <span class="chart-title">Codex Usage</span>
+      <span class="chart-sub" id="codex-usage-sub" role="status">loading…</span>
+    </div>
+    <div id="codex-usage-bars"></div>
+    <div id="codex-daily-usage"></div>
+  </div>
+
+  <div class="chart-card {% if not show_claude_usage %}meter-hidden{% endif %}" id="live-usage-card">
+    <div class="chart-header">
+      <span class="chart-title">Claude.ai Live Usage</span>
+      <span class="chart-sub" id="live-usage-sub">loading…</span>
+    </div>
+    <div id="live-usage-bars"></div>
+  </div>
+
+  <div class="chart-card {% if not show_ollama_usage %}meter-hidden{% endif %}" id="ollama-usage-card">
+    <div class="chart-header">
+      <span class="chart-title">Ollama.com Usage</span>
+      <span class="chart-sub" id="ollama-usage-sub">loading…</span>
+    </div>
+    <div id="ollama-usage-bars"></div>
+  </div>
+
+  <div class="chart-card {% if not show_gemini_usage %}meter-hidden{% endif %}" id="gemini-usage-card">
+    <div class="chart-header">
+      <span class="chart-title">Gemini API Usage (Cloud)</span>
+      <span class="chart-sub" id="gemini-usage-sub">loading…</span>
+    </div>
+    <div id="gemini-usage-bars"></div>
+  </div>
+</section>
+
+<script src="{{ url_for('static', filename='codex.js') }}" defer></script>
+<script src="{{ url_for('static', filename='usage-widget.js') }}" defer></script>
+{% endblock %}

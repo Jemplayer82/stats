@@ -56,6 +56,11 @@ $ docker compose up -d
 
 The dashboard will be available at **http://\<your-host\>:5000**.
 
+Open a compact widget-only view at **http://<your-host>:5000/widget** for a smaller dashboard that only shows usage meters (Codex, Claude.ai, Ollama.com, Gemini).  
+Use that page in a small always-on-top browser window for a desktop-style widget.
+
+Use **Settings → Usage cards to show** to choose which usage cards are visible.
+
 ---
 
 ## `[ configuration ]`

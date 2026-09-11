@@ -43,6 +43,10 @@ CONFIG_UNIFI_HOST = 'unifi_host'
 CONFIG_UNIFI_USERNAME = 'unifi_username'
 CONFIG_UNIFI_PASSWORD = 'unifi_password'
 CONFIG_UNIFI_SITE = 'unifi_site'
+CONFIG_SHOW_CODEX_USAGE = 'show_codex_usage'
+CONFIG_SHOW_CLAUDE_USAGE = 'show_claude_usage'
+CONFIG_SHOW_OLLAMA_USAGE = 'show_ollama_usage'
+CONFIG_SHOW_GEMINI_USAGE = 'show_gemini_usage'
 
 # Error codes
 class ErrorCode:
@@ -92,6 +96,19 @@ def set_config(key, value):
     db.session.commit()
 
 
+def _is_true(value):
+    return value == '1'
+
+
+def _usage_display_settings():
+    return {
+        'show_codex_usage': _is_true(get_config(CONFIG_SHOW_CODEX_USAGE, '1')),
+        'show_claude_usage': _is_true(get_config(CONFIG_SHOW_CLAUDE_USAGE, '1')),
+        'show_ollama_usage': _is_true(get_config(CONFIG_SHOW_OLLAMA_USAGE, '1')),
+        'show_gemini_usage': _is_true(get_config(CONFIG_SHOW_GEMINI_USAGE, '1')),
+    }
+
+
 with app.app_context():
     db.create_all()
 
@@ -102,12 +119,18 @@ with app.app_context():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', **_usage_display_settings())
 
 
 @app.route('/network')
 def network():
     return render_template('network.html')
+
+
+@app.route('/widget')
+@app.route('/widget/usage')
+def usage_widget():
+    return render_template('widget.html', **_usage_display_settings())
 
 
 @app.route('/api/codex-usage')
@@ -163,10 +186,15 @@ def settings():
         if unifi_username: set_config(CONFIG_UNIFI_USERNAME, unifi_username)
         if unifi_password: set_config(CONFIG_UNIFI_PASSWORD, unifi_password)
         if unifi_site:     set_config(CONFIG_UNIFI_SITE, unifi_site)
+        set_config(CONFIG_SHOW_CODEX_USAGE, '1' if request.form.get(CONFIG_SHOW_CODEX_USAGE) == '1' else '0')
+        set_config(CONFIG_SHOW_CLAUDE_USAGE, '1' if request.form.get(CONFIG_SHOW_CLAUDE_USAGE) == '1' else '0')
+        set_config(CONFIG_SHOW_OLLAMA_USAGE, '1' if request.form.get(CONFIG_SHOW_OLLAMA_USAGE) == '1' else '0')
+        set_config(CONFIG_SHOW_GEMINI_USAGE, '1' if request.form.get(CONFIG_SHOW_GEMINI_USAGE) == '1' else '0')
 
         return redirect(url_for('settings'))
 
     return render_template('settings.html',
+                           **_usage_display_settings(),
                            has_claude_cookie=bool(get_config(CONFIG_CLAUDE_AI_SESSION, '')),
                            has_ollama_cookie=bool(get_config(CONFIG_OLLAMA_COM_SESSION, '')),
                            proxmox_host=get_config(CONFIG_PROXMOX_HOST, ''),

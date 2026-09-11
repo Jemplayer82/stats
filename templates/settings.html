@@ -17,6 +17,29 @@
 </section>
 
 <form method="POST" class="usage-form">
+  <h3>Usage cards to show</h3>
+  <p class="hint" style="margin-bottom: 1rem;">Choose which usage cards appear in the dashboard and widget.</p>
+  <div class="display-settings">
+    <label class="checkbox-field">
+      <input type="checkbox" name="show_codex_usage" value="1"{% if show_codex_usage %} checked{% endif %} />
+      <span>Codex / ChatGPT usage</span>
+    </label>
+    <label class="checkbox-field">
+      <input type="checkbox" name="show_claude_usage" value="1"{% if show_claude_usage %} checked{% endif %} />
+      <span>Claude.ai live usage</span>
+    </label>
+    <label class="checkbox-field">
+      <input type="checkbox" name="show_ollama_usage" value="1"{% if show_ollama_usage %} checked{% endif %} />
+      <span>Ollama.com usage</span>
+    </label>
+    <label class="checkbox-field">
+      <input type="checkbox" name="show_gemini_usage" value="1"{% if show_gemini_usage %} checked{% endif %} />
+      <span>Gemini API usage</span>
+    </label>
+  </div>
+
+  <hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
   <label>Claude.ai Session Cookie
     <input type="password" name="claude_ai_session"
            placeholder="{% if has_claude_cookie %}saved — paste to replace{% else %}paste your sessionKey value{% endif %}" />

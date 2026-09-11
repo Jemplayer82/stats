@@ -6,11 +6,13 @@
   <title>{% block title %}AI Usage Tracker{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
-<body>
+{% set _body_class = body_class|default('') %}
+<body{% if _body_class %} class="{{ _body_class }}"{% endif %}>
   <nav>
     <a href="{{ url_for('index') }}" class="brand">Usage Meters</a>
     <div class="nav-links">
       <a href="{{ url_for('network') }}">Network</a>
+      <a href="{{ url_for('usage_widget') }}">Widget</a>
       <a href="{{ url_for('settings') }}">Settings</a>
     </div>
   </nav>
