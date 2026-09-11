@@ -6,8 +6,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-VOLUME_NAME="${1:-${STATS_VOLUME_NAME:-stats_stats_data}}"
-TARGET="${2:-latest}"
+if [ "${1-}" = "" ]; then
+  VOLUME_NAME="${STATS_VOLUME_NAME:-stats_stats_data}"
+  TARGET="latest"
+elif [[ "$1" == *.db ]]; then
+  VOLUME_NAME="${STATS_VOLUME_NAME:-stats_stats_data}"
+  TARGET="$1"
+else
+  VOLUME_NAME="$1"
+  TARGET="${2:-latest}"
+fi
 
 if [ "$TARGET" = "latest" ]; then
   BACKUP_DIR="backups"
