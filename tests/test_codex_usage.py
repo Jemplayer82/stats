@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import app as stats_app
 import codex_usage as usage
 
 
@@ -117,6 +118,31 @@ for line in sys.stdin:
             self.assertEqual(result['windows'][0]['used_percent'], 23)
             self.assertIsNone(result['daily'])
             self.assertNotIn('private', json.dumps(result))
+
+
+class WidgetApiTests(unittest.TestCase):
+    def setUp(self):
+        self.client = stats_app.app.test_client()
+
+    @patch.object(stats_app, '_gemini_usage_payload', return_value={'ok': True, 'project_id': 'p', 'data': []})
+    @patch.object(stats_app, '_ollama_com_usage_payload', return_value={'ok': True, 'data': []})
+    @patch.object(stats_app, '_claude_usage_payload', return_value={'ok': True, 'usage': {'five_hour': {'utilization': 10}}})
+    @patch.object(stats_app, '_codex_usage_payload', return_value={'ok': True, 'windows': []})
+    def test_widget_usage_filters_services(self, _codex, _claude, _ollama, _gemini):
+        response = self.client.get('/api/widget/usage?services=codex,ollama')
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+
+        self.assertEqual(data['schema_version'], 'stats-widget-v1')
+        self.assertEqual([item['service_id'] for item in data['services']], ['codex', 'ollama'])
+        self.assertTrue(all(item['status'] == 'ok' for item in data['services']))
+        self.assertEqual(response.headers.get('Access-Control-Allow-Origin'), '*')
+        self.assertTrue(all('visible' in item for item in data['services']))
+        _codex.assert_called_once()
+        _ollama.assert_called_once()
+        _claude.assert_not_called()
+        _gemini.assert_not_called()
 
 
 if __name__ == '__main__':

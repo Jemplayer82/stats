@@ -109,6 +109,65 @@ def _usage_display_settings():
     }
 
 
+def _parse_widget_services(raw_services):
+    if not raw_services:
+        return None
+    ids = []
+    seen = set()
+    for item in raw_services.split(','):
+        svc = item.strip().lower()
+        if svc in ('codex', 'claude', 'ollama', 'gemini') and svc not in seen:
+            ids.append(svc)
+            seen.add(svc)
+    return ids
+
+
+def _widget_services_from_settings():
+    settings = _usage_display_settings()
+    services = []
+    if settings['show_codex_usage']:
+        services.append('codex')
+    if settings['show_claude_usage']:
+        services.append('claude')
+    if settings['show_ollama_usage']:
+        services.append('ollama')
+    if settings['show_gemini_usage']:
+        services.append('gemini')
+    return services
+
+
+def _codex_usage_payload():
+    try:
+        return get_codex_usage()
+    except OSError:
+        return {'error': 'storage_unavailable'}
+
+
+def _service_payload_for_widget(service_id):
+    if service_id == 'codex':
+        payload = _codex_usage_payload()
+    elif service_id == 'claude':
+        payload = _claude_usage_payload()
+    elif service_id == 'ollama':
+        payload = _ollama_com_usage_payload()
+    elif service_id == 'gemini':
+        payload = _gemini_usage_payload()
+    else:
+        payload = {'error': 'unsupported_service'}
+    status = 'ok' if isinstance(payload, dict) and not payload.get('error') else 'error'
+    config_key = f"show_{service_id}_usage"
+    if service_id == 'claude':
+        config_key = 'show_claude_usage'
+    visible = _usage_display_settings().get(config_key, True)
+    return {
+        'service_id': service_id,
+        'status': status,
+        'visible': visible,
+        'payload': payload,
+        'config_key': config_key,
+    }
+
+
 with app.app_context():
     db.create_all()
 
@@ -135,12 +194,24 @@ def usage_widget():
 
 @app.route('/api/codex-usage')
 def api_codex_usage():
-    try:
-        payload = get_codex_usage()
-    except OSError:
-        payload = {'error': 'storage_unavailable'}
+    payload = _codex_usage_payload()
     response = jsonify(payload)
     response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@app.route('/api/widget/usage')
+def api_widget_usage():
+    requested = _parse_widget_services(request.args.get('services'))
+    services = requested if requested else _widget_services_from_settings()
+    response_payload = {
+        'schema_version': 'stats-widget-v1',
+        'timestamp': int(time.time()),
+        'services': [_service_payload_for_widget(svc) for svc in services],
+    }
+    response = jsonify(response_payload)
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['Access-Control-Allow-Origin'] = '*'
     return response
 
 
@@ -214,11 +285,10 @@ def settings():
 # Gemini (Google Cloud Monitoring) live usage
 # ---------------------------------------------------------------------------
 
-@app.route('/api/gemini-usage')
-def api_gemini_usage():
+def _gemini_usage_payload():
     gemini_json = get_config(CONFIG_GEMINI_SERVICE_ACCOUNT, '')
     if not gemini_json:
-        return jsonify({'error': ErrorCode.NO_CONFIG}), 200
+        return {'error': ErrorCode.NO_CONFIG}
 
     try:
         info = json.loads(gemini_json)
@@ -284,9 +354,16 @@ def api_gemini_usage():
             except Exception:
                 continue
 
-        return jsonify({'ok': True, 'project_id': project_id, 'data': usage_data})
+        return {'ok': True, 'project_id': project_id, 'data': usage_data}
     except Exception as e:
-        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
+        return {'error': ErrorCode.API_ERROR, 'details': str(e)}
+
+
+@app.route('/api/gemini-usage')
+def api_gemini_usage():
+    response = jsonify(_gemini_usage_payload())
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -688,12 +765,11 @@ def _claude_session_headers(cookie_val):
     return {**CLAUDE_HEADERS, 'cookie': cookie}
 
 
-@app.route('/api/claude-usage')
-def api_claude_usage():
+def _claude_usage_payload():
     """Fetch live usage limits from claude.ai and return JSON for the dashboard."""
     cookie = get_config(CONFIG_CLAUDE_AI_SESSION, '')
     if not cookie:
-        return jsonify({'error': ErrorCode.NO_COOKIE}), 200
+        return {'error': ErrorCode.NO_COOKIE}
 
     hdrs = _claude_session_headers(cookie)
 
@@ -701,13 +777,13 @@ def api_claude_usage():
     try:
         r = http.get('https://claude.ai/api/organizations', headers=hdrs, timeout=10)
         if r.status_code == 401:
-            return jsonify({'error': ErrorCode.AUTH_FAILED}), 200
+            return {'error': ErrorCode.AUTH_FAILED}
         orgs = r.json()
         if not orgs:
-            return jsonify({'error': ErrorCode.NO_ORGS}), 200
+            return {'error': ErrorCode.NO_ORGS}
         org_id = orgs[0].get('uuid') or orgs[0].get('id', '')
     except Exception as e:
-        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
+        return {'error': ErrorCode.API_ERROR, 'details': str(e)}
 
     # Step 2: try several known usage endpoints
     usage_data = None
@@ -726,9 +802,16 @@ def api_claude_usage():
             continue
 
     if usage_data is None:
-        return jsonify({'error': ErrorCode.USAGE_ENDPOINT_NOT_FOUND, 'org_id': org_id}), 200
+        return {'error': ErrorCode.USAGE_ENDPOINT_NOT_FOUND, 'org_id': org_id}
 
-    return jsonify({'ok': True, 'org_id': org_id, 'usage': usage_data})
+    return {'ok': True, 'org_id': org_id, 'usage': usage_data}
+
+
+@app.route('/api/claude-usage')
+def api_claude_usage():
+    response = jsonify(_claude_usage_payload())
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -758,18 +841,17 @@ def _ollama_session_headers(cookie_val):
     return {**OLLAMA_COM_HEADERS, 'cookie': cookie_str}
 
 
-@app.route('/api/ollama-com-usage')
-def api_ollama_com_usage():
+def _ollama_com_usage_payload():
     cookie = get_config(CONFIG_OLLAMA_COM_SESSION, '')
     if not cookie:
-        return jsonify({'error': ErrorCode.NO_COOKIE}), 200
+        return {'error': ErrorCode.NO_COOKIE}
 
     hdrs = _ollama_session_headers(cookie)
 
     try:
         r = http.get('https://ollama.com/settings', headers=hdrs, timeout=15)
     except Exception as e:
-        return jsonify({'error': ErrorCode.API_ERROR, 'details': str(e)}), 200
+        return {'error': ErrorCode.API_ERROR, 'details': str(e)}
 
     # ollama.com now hosts its login flow on the signin.ollama.com subdomain
     # (WorkOS AuthKit). An expired/invalid cookie gets redirected there instead
@@ -778,7 +860,7 @@ def api_ollama_com_usage():
     # markup changing; the raw-text check is kept as a same-host fallback.
     landed_host = urlparse(r.url).hostname or ''
     if r.status_code == 401 or landed_host != 'ollama.com' or 'Sign in' in r.text:
-        return jsonify({'error': ErrorCode.AUTH_FAILED}), 200
+        return {'error': ErrorCode.AUTH_FAILED}
 
     html = r.text
     fields = []
@@ -825,7 +907,7 @@ def api_ollama_com_usage():
         with open('debug_ollama_fail.html', 'w') as f:
             f.write(html)
         debug_html_saved = True
-        return jsonify({'error': ErrorCode.PARSE_EXCEPTION, 'details': str(e), 'debug': 'See debug_ollama_fail.html'}), 200
+        return {'error': ErrorCode.PARSE_EXCEPTION, 'details': str(e), 'debug': 'See debug_ollama_fail.html'}
 
     if not fields:
         if not debug_html_saved:
@@ -833,14 +915,21 @@ def api_ollama_com_usage():
                 f.write(html)
         soup2 = BeautifulSoup(html, 'html.parser')
         title = soup2.title.string if soup2.title else '(no title)'
-        return jsonify({
+        return {
             'error': ErrorCode.PARSE_FAILED,
             'hint': 'Could not find usage blocks in page.',
             'page_title': title,
             'page_snippet': html[:500],
-        }), 200
+        }
 
-    return jsonify({'ok': True, 'data': fields})
+    return {'ok': True, 'data': fields}
+
+
+@app.route('/api/ollama-com-usage')
+def api_ollama_com_usage():
+    response = jsonify(_ollama_com_usage_payload())
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 

@@ -61,6 +61,59 @@ Use that page in a small always-on-top browser window for a desktop-style widget
 
 Use **Settings → Usage cards to show** to choose which usage cards are visible.
 
+## `[ widgetlauncher integration ]`
+
+If you are using [Widget Launcher](https://github.com/chanallenk/widgetlauncher.extension), your extension can consume this endpoint:
+
+### `GET /api/widget/usage`
+
+Returns a compact JSON payload your desktop widget can bind to, with optional filtering by services:
+
+```bash
+# Return whatever is enabled in Settings
+curl "http://<your-host>:5000/api/widget/usage"
+
+# Return only chosen services
+curl "http://<your-host>:5000/api/widget/usage?services=codex,claude,gemini"
+```
+
+The response includes:
+
+- `schema_version` (currently `stats-widget-v1`)
+- `timestamp`
+- `services[]` entries (`codex`, `claude`, `ollama`, `gemini`)
+  - `status`: `ok` or `error`
+  - `visible`: whether the service is enabled in Settings
+  - `payload`: same shape as each service’s existing `api/*-usage` endpoint
+
+Quick C# shape in your Widget Launcher control:
+
+```csharp
+using System.Net.Http;
+using System.Net.Http.Json;
+
+public sealed record WidgetServicePayload(
+    string ServiceId,
+    string Status,
+    bool Visible,
+    object Payload);
+
+public sealed record WidgetPayload(
+    string SchemaVersion,
+    long Timestamp,
+    WidgetServicePayload[] Services);
+
+...
+var client = new HttpClient();
+var data = await client.GetFromJsonAsync<WidgetPayload>(
+    "http://192.168.1.10:5000/api/widget/usage?services=codex,claude,ollama");
+```
+
+You can map `Payload` from each service into your WPF controls and refresh on your widget
+interval. If you want each extension instance to keep its own service selection, pass that
+selection through `services` on each request and keep that selection in the extension’s saved
+settings.
+
 ---
 
 ## `[ configuration ]`
