@@ -141,6 +141,33 @@ $ docker compose down
 
 # Rebuild after code changes
 $ docker compose up -d --build
+
+# Backup current settings before updating/redeploying
+$ ./scripts/stats-backup.sh
+
+# Restore a backup (replace `usage-YYYYMMDD_HHMMSS.db` with your backup file)
+$ ./scripts/stats-restore.sh backups/usage-YYYYMMDD_HHMMSS.db
+
+# One-command safe deploy (backup -> pull -> rebuild -> up)
+$ ./scripts/update-stats.sh
+```
+
+## `[ preserving settings ]`
+
+Your service credentials and usage-card visibility settings are stored in the SQLite DB
+inside the `stats` data volume (`stats_data` inside Docker Compose).
+
+- `scripts/stats-backup.sh` copies `/data/usage.db` from that volume into the repo's
+  `backups/` folder so you can keep a dated snapshot.
+- `scripts/stats-restore.sh` restores any `usage-*.db` backup into the live volume.
+- `scripts/update-stats.sh` runs backup + `docker compose pull` + `docker compose up -d --build`
+  in one step.
+
+If something changes during an update, restore the newest backup and run:
+
+```bash
+$ ./scripts/stats-restore.sh
+$ docker compose restart stats
 ```
 
 ---
