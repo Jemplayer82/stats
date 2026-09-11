@@ -1,0 +1,111 @@
+<UserControl x:Class="StatsUsageWidget.Widgets.Usage.Views.MainUserControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="360" Height="420">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <Style x:Key="QuietText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#FF94A3B8" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="#F20B1018" BorderBrush="#FF273244" BorderThickness="1"
+            CornerRadius="20" Padding="18">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="AI USAGE" Foreground="#FF6EE7B7"
+                               FontSize="11" FontWeight="Bold" />
+                    <TextBlock Text="Stats meters" Foreground="White"
+                               FontSize="24" FontWeight="SemiBold" />
+                </StackPanel>
+                <Button Grid.Column="1" Command="{Binding RefreshCommand}"
+                        Width="34" Height="34" Margin="8,0,0,0"
+                        ToolTip="Refresh now" Cursor="Hand"
+                        Background="#FF1E293B" Foreground="White"
+                        BorderBrush="#FF334155" FontSize="17" Content="↻" />
+            </Grid>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock Text="{Binding StatusText}" Style="{StaticResource QuietText}"
+                               TextWrapping="Wrap" Margin="0,2,0,8" />
+                    <ItemsControl ItemsSource="{Binding Services}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#B3121925" BorderBrush="#FF263244"
+                                        BorderThickness="1" CornerRadius="12"
+                                        Padding="12" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,7">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse Width="8" Height="8" Fill="{Binding Accent}"
+                                                         Margin="0,0,7,0" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Name}" Foreground="White"
+                                                           FontSize="14" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding StatusText}"
+                                                       Style="{StaticResource QuietText}" />
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding Metrics}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="0,3,0,7">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="{Binding Label}" Foreground="#FFD7E0EC"
+                                                                       FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding ValueText}"
+                                                                       Foreground="White" FontSize="11"
+                                                                       FontWeight="SemiBold" Margin="8,0,0,0" />
+                                                        </Grid>
+                                                        <ProgressBar Height="5" Minimum="0" Maximum="100"
+                                                                     Value="{Binding Percent}" Margin="0,5,0,0"
+                                                                     Foreground="{Binding DataContext.Accent, RelativeSource={RelativeSource AncestorType=Border}}"
+                                                                     Background="#FF263244"
+                                                                     Visibility="{Binding HasPercent, Converter={StaticResource BoolToVisibility}}" />
+                                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource QuietText}"
+                                                                   Margin="0,3,0,0" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Grid Grid.Row="2" Margin="0,7,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding LastUpdated}" Style="{StaticResource QuietText}" />
+                <TextBlock Grid.Column="1" Text="cleo · Stats" Style="{StaticResource QuietText}" />
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

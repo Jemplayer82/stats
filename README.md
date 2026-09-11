@@ -63,6 +63,8 @@ Use **Settings → Usage cards to show** to choose which usage cards are visible
 
 ## `[ widgetlauncher integration ]`
 
+The repository includes a native Windows extension in [`widget-launcher/`](widget-launcher/README.md). It provides a desktop widget with settings for the Stats address, visible services, connection testing, and refresh frequency.
+
 If you are using [Widget Launcher](https://github.com/chanallenk/widgetlauncher.extension), your extension can consume this endpoint:
 
 ### `GET /api/widget/usage`

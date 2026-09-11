@@ -1,0 +1,24 @@
+{
+  "Widgets": [
+    {
+      "SearchTags": [
+        "Stats",
+        "Codex",
+        "Claude",
+        "Ollama",
+        "Gemini",
+        "Usage"
+      ],
+      "DisplayName": "Stats AI Usage",
+      "GuidIdentifier": "8f5260ac-64aa-4d32-92e3-b5003ca85404",
+      "Version": "6.0.1",
+      "Description": "Desktop usage meters for Codex, Claude, Ollama, and Gemini, powered by Stats.",
+      "AssemblyName": "StatsUsageWidget.dll",
+      "MainClass": "StatsUsageWidget.Widgets.Usage.StatsUsageExtension",
+      "ImagePath": "Assets/WidgetIcons/StatsUsageWidgetIcon.png",
+      "MaximumInstances": 0,
+      "SupportsTransparency": true,
+      "SupportsSkins": false
+    }
+  ]
+}

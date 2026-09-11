@@ -7,3 +7,12 @@ venv/
 env/
 *.db
 instance/
+
+# Widget Launcher build output
+widget-launcher/**/bin/
+widget-launcher/**/obj/
+widget-launcher/**/AppPackages/
+widget-launcher/artifacts/
+widget-launcher/.vs/
+*.user
+*.suo

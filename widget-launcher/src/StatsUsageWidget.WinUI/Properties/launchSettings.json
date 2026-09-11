@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "StatsUsageWidget.WinUI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "StatsUsageWidget.WinUI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
