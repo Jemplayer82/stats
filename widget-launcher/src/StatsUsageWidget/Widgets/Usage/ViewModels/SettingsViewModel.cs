@@ -10,7 +10,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public IReadOnlyList<int> RefreshOptions { get; } = [30, 60, 120, 300, 600];
 
-    public string StatsBaseUrl { get; private set; } = "http://cleo";
+    public string StatsBaseUrl { get; private set; } = "https://stats.txferguson.net";
     public bool ShowCodex { get; private set; } = true;
     public bool ShowClaude { get; private set; } = true;
     public bool ShowOllama { get; private set; } = true;
@@ -18,7 +18,7 @@ public partial class SettingsViewModel : ObservableObject
     public int RefreshSeconds { get; private set; } = 60;
 
     [ObservableProperty]
-    private string _tempStatsBaseUrl = "http://cleo";
+    private string _tempStatsBaseUrl = "https://stats.txferguson.net";
 
     [ObservableProperty]
     private bool _tempShowCodex = true;
@@ -59,7 +59,7 @@ public partial class SettingsViewModel : ObservableObject
     public void Load(WidgetSettings settings)
     {
         StatsBaseUrl = string.IsNullOrWhiteSpace(settings.StatsBaseUrl)
-            ? "http://cleo"
+            ? "https://stats.txferguson.net"
             : settings.StatsBaseUrl.Trim();
         ShowCodex = settings.ShowCodex;
         ShowClaude = settings.ShowClaude;

@@ -21,7 +21,7 @@
             <TextBlock Text="Stats web address" FontWeight="SemiBold" Margin="0,0,0,6" />
             <TextBox Text="{Binding TempStatsBaseUrl, UpdateSourceTrigger=PropertyChanged}"
                      Padding="9,7" Margin="0,0,0,5" />
-            <TextBlock Text="Example: http://cleo or https://stats.example.com"
+            <TextBlock Text="Example: https://stats.txferguson.net"
                        Foreground="#FF94A3B8" FontSize="11" Margin="0,0,0,16" />
 
             <TextBlock Text="Show these meters" FontWeight="SemiBold" Margin="0,0,0,9" />

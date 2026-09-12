@@ -67,17 +67,25 @@ if ($LASTEXITCODE -ne 0) { throw 'MSIX signing failed.' }
 
 $certificateLiteral = $certificateFile.Replace("'", "''")
 $installerLiteral = $installerFile.Replace("'", "''")
-$elevatedCommand = @"
+$trustedCertificate = Get-ChildItem Cert:\LocalMachine\Root |
+    Where-Object { $_.Thumbprint -eq $certificate.Thumbprint } |
+    Select-Object -First 1
+
+if ($trustedCertificate) {
+    Add-AppxPackage -Path $installerFile -ForceApplicationShutdown -ForceUpdateFromAnyVersion
+} else {
+    $elevatedCommand = @"
 `$ErrorActionPreference = 'Stop'
 Import-Certificate -FilePath '$certificateLiteral' -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
 Add-AppxPackage -Path '$installerLiteral' -ForceApplicationShutdown -ForceUpdateFromAnyVersion
 "@
-$encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($elevatedCommand))
-$process = Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -PassThru `
-    -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encodedCommand
+    $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($elevatedCommand))
+    $process = Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -PassThru `
+        -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encodedCommand
 
-if ($process.ExitCode -ne 0) {
-    throw "Installation did not finish successfully (exit code $($process.ExitCode))."
+    if ($process.ExitCode -ne 0) {
+        throw "Installation did not finish successfully (exit code $($process.ExitCode))."
+    }
 }
 
 Write-Host ''

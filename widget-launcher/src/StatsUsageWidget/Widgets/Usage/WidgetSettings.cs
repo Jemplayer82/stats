@@ -2,7 +2,7 @@ namespace StatsUsageWidget.Widgets.Usage;
 
 public sealed class WidgetSettings
 {
-    public string StatsBaseUrl { get; set; } = "http://cleo";
+    public string StatsBaseUrl { get; set; } = "https://stats.txferguson.net";
     public bool ShowCodex { get; set; } = true;
     public bool ShowClaude { get; set; } = true;
     public bool ShowOllama { get; set; } = true;
