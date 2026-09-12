@@ -10,6 +10,7 @@ namespace StatsUsageWidget.Widgets.Usage.Views;
 
 public partial class MainUserControl : UserControl
 {
+    private const double HostWidthAllowance = 104;
     private const double HostHeightAllowance = 24;
     private MainViewModel? _viewModel;
 
@@ -62,7 +63,7 @@ public partial class MainUserControl : UserControl
             return;
 
         var scale = Math.Clamp(_viewModel.UiScale, 0.75, 1.5);
-        var newWidth = _viewModel.WidgetBaseWidth * scale;
+        var newWidth = (_viewModel.WidgetBaseWidth * scale) + HostWidthAllowance;
         var newHeight = (_viewModel.WidgetBaseHeight * scale) + HostHeightAllowance;
         var centerX = hostWindow.Left + (hostWindow.Width / 2);
         var centerY = hostWindow.Top + (hostWindow.Height / 2);
