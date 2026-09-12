@@ -7,7 +7,7 @@ using StatsUsageWidget.Widgets.SystemMonitor.Views;
 
 namespace StatsUsageWidget.Widgets.SystemMonitor;
 
-public sealed class SystemMonitorExtension : IWidgetExtension, IExiting, IRefreshing, ILog
+public sealed class SystemMonitorExtension : IWidgetExtension, ISettings, IExiting, IRefreshing, ILog
 {
     private readonly SystemMonitorSettingsViewModel _settings = new();
     private readonly SystemMonitorViewModel _viewModel;
