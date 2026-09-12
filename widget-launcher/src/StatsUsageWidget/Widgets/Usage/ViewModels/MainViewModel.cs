@@ -28,18 +28,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private double _transparencyPercent;
 
+    [ObservableProperty]
+    private double _scalePercent;
+
     public double BackgroundOpacity => Math.Clamp(1 - (TransparencyPercent / 100), 0.1, 1);
+    public double UiScale => ScalePercent / 100;
 
     public MainViewModel(SettingsViewModel settings)
     {
         _settings = settings;
         _settings.SettingsApplied += SettingsApplied;
         TransparencyPercent = _settings.TransparencyPercent;
+        ScalePercent = _settings.ScalePercent;
         _ = RefreshAsync();
     }
 
     partial void OnTransparencyPercentChanged(double value) =>
         OnPropertyChanged(nameof(BackgroundOpacity));
+
+    partial void OnScalePercentChanged(double value) =>
+        OnPropertyChanged(nameof(UiScale));
 
     [RelayCommand]
     public async Task RefreshAsync()
@@ -82,6 +90,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void SettingsApplied(object? sender, EventArgs e)
     {
         TransparencyPercent = _settings.TransparencyPercent;
+        ScalePercent = _settings.ScalePercent;
         _ = RefreshAsync();
     }
 

@@ -17,6 +17,7 @@ public partial class SettingsViewModel : ObservableObject
     public bool ShowGemini { get; private set; } = true;
     public int RefreshSeconds { get; private set; } = 60;
     public int TransparencyPercent { get; private set; } = 5;
+    public int ScalePercent { get; private set; } = 100;
 
     [ObservableProperty]
     private string _tempStatsBaseUrl = "https://stats.txferguson.net";
@@ -40,6 +41,9 @@ public partial class SettingsViewModel : ObservableObject
     private int _tempTransparencyPercent = 5;
 
     [ObservableProperty]
+    private int _tempScalePercent = 100;
+
+    [ObservableProperty]
     private string _connectionStatus = string.Empty;
 
     [ObservableProperty]
@@ -57,7 +61,8 @@ public partial class SettingsViewModel : ObservableObject
             ShowOllama = useTemporary ? TempShowOllama : ShowOllama,
             ShowGemini = useTemporary ? TempShowGemini : ShowGemini,
             RefreshSeconds = useTemporary ? TempRefreshSeconds : RefreshSeconds,
-            TransparencyPercent = useTemporary ? TempTransparencyPercent : TransparencyPercent
+            TransparencyPercent = useTemporary ? TempTransparencyPercent : TransparencyPercent,
+            ScalePercent = useTemporary ? TempScalePercent : ScalePercent
         };
     }
 
@@ -74,6 +79,7 @@ public partial class SettingsViewModel : ObservableObject
             ? settings.RefreshSeconds
             : 60;
         TransparencyPercent = Math.Clamp(settings.TransparencyPercent, 0, 90);
+        ScalePercent = Math.Clamp(settings.ScalePercent, 75, 150);
         LoadTempSettings();
         OnPropertyChanged(string.Empty);
         SettingsApplied?.Invoke(this, EventArgs.Empty);
@@ -88,6 +94,7 @@ public partial class SettingsViewModel : ObservableObject
         TempShowGemini = ShowGemini;
         TempRefreshSeconds = RefreshSeconds;
         TempTransparencyPercent = TransparencyPercent;
+        TempScalePercent = ScalePercent;
         ConnectionStatus = string.Empty;
     }
 
@@ -105,6 +112,7 @@ public partial class SettingsViewModel : ObservableObject
             ? TempRefreshSeconds
             : 60;
         TransparencyPercent = Math.Clamp(TempTransparencyPercent, 0, 90);
+        ScalePercent = Math.Clamp(TempScalePercent, 75, 150);
         OnPropertyChanged(string.Empty);
         SettingsApplied?.Invoke(this, EventArgs.Empty);
     }
