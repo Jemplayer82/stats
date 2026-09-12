@@ -7,7 +7,7 @@ namespace StatsUsageWidget.Widgets.SystemMonitor.ViewModels;
 public partial class SystemMonitorViewModel : ObservableObject, IDisposable
 {
     private const double BaseWidgetWidth = 300;
-    private const double BaseWidgetHeight = 310;
+    private const double BaseWidgetHeight = 290;
     private readonly SystemMonitorSettingsViewModel _settings;
     private readonly SystemMetricsService _metrics = new();
     private readonly DispatcherTimer _timer;
@@ -57,6 +57,7 @@ public partial class SystemMonitorViewModel : ObservableObject, IDisposable
     {
         _settings = settings;
         _settings.SettingsApplied += OnSettingsApplied;
+        _settings.ScaleChanged += OnScaleChanged;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += OnTimerTick;
         Update();
@@ -97,6 +98,7 @@ public partial class SystemMonitorViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _settings.SettingsApplied -= OnSettingsApplied;
+        _settings.ScaleChanged -= OnScaleChanged;
         _timer.Stop();
         _timer.Tick -= OnTimerTick;
         _metrics.Dispose();
@@ -105,6 +107,11 @@ public partial class SystemMonitorViewModel : ObservableObject, IDisposable
     private void OnTimerTick(object? sender, EventArgs e) => Update();
 
     private void OnSettingsApplied(object? sender, EventArgs e)
+    {
+        OnScaleChanged(sender, e);
+    }
+
+    private void OnScaleChanged(object? sender, EventArgs e)
     {
         OnPropertyChanged(nameof(UiScale));
         OnPropertyChanged(nameof(WidgetWidth));

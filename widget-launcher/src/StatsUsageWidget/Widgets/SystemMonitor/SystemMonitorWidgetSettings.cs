@@ -2,5 +2,6 @@ namespace StatsUsageWidget.Widgets.SystemMonitor;
 
 public sealed class SystemMonitorWidgetSettings
 {
-    public int ScalePercent { get; set; } = 100;
+    public int SettingsVersion { get; set; }
+    public int ScalePercent { get; set; } = 75;
 }

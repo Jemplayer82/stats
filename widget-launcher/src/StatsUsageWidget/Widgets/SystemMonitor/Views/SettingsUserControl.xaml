@@ -14,13 +14,13 @@
                        DockPanel.Dock="Right" />
         </DockPanel>
 
-        <Slider Minimum="75" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True"
+        <Slider Minimum="50" Maximum="125" TickFrequency="5" IsSnapToTickEnabled="True"
                 Value="{Binding TempScalePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                 Margin="0,10,0,2" />
 
         <DockPanel LastChildFill="False">
-            <TextBlock Text="75%" Foreground="#FF7F8B99" FontSize="11" />
-            <TextBlock Text="150%" Foreground="#FF7F8B99" FontSize="11" DockPanel.Dock="Right" />
+            <TextBlock Text="50%" Foreground="#FF7F8B99" FontSize="11" />
+            <TextBlock Text="125%" Foreground="#FF7F8B99" FontSize="11" DockPanel.Dock="Right" />
         </DockPanel>
 
         <TextBlock Text="Apply the setting from the widget settings window."

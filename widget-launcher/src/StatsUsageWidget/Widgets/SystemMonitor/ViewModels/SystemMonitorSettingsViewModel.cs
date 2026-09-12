@@ -4,8 +4,10 @@ namespace StatsUsageWidget.Widgets.SystemMonitor.ViewModels;
 
 public sealed class SystemMonitorSettingsViewModel : ObservableObject
 {
-    private int _scalePercent = 100;
-    private int _tempScalePercent = 100;
+    private const int MinimumScalePercent = 50;
+    private const int MaximumScalePercent = 125;
+    private int _scalePercent = 75;
+    private int _tempScalePercent = 75;
 
     public int ScalePercent
     {
@@ -16,16 +18,25 @@ public sealed class SystemMonitorSettingsViewModel : ObservableObject
     public int TempScalePercent
     {
         get => _tempScalePercent;
-        set => SetProperty(ref _tempScalePercent, Math.Clamp(value, 75, 150));
+        set
+        {
+            if (SetProperty(ref _tempScalePercent, Math.Clamp(value, MinimumScalePercent, MaximumScalePercent)))
+                ScaleChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
-    public double UiScale => ScalePercent / 100d;
+    public double UiScale => TempScalePercent / 100d;
 
     public event EventHandler? SettingsApplied;
+    public event EventHandler? ScaleChanged;
 
     public void Load(SystemMonitorWidgetSettings settings)
     {
-        ScalePercent = Math.Clamp(settings.ScalePercent, 75, 150);
+        // Settings written before the version field used a much larger default.
+        // Start those installs compact so an old saved value cannot reopen huge.
+        ScalePercent = settings.SettingsVersion < 1
+            ? 75
+            : Math.Clamp(settings.ScalePercent, MinimumScalePercent, MaximumScalePercent);
         LoadTempSettings();
     }
 
@@ -36,7 +47,7 @@ public sealed class SystemMonitorSettingsViewModel : ObservableObject
 
     public void ApplySettings()
     {
-        ScalePercent = Math.Clamp(TempScalePercent, 75, 150);
+        ScalePercent = Math.Clamp(TempScalePercent, MinimumScalePercent, MaximumScalePercent);
         SettingsApplied?.Invoke(this, EventArgs.Empty);
     }
 
@@ -47,6 +58,10 @@ public sealed class SystemMonitorSettingsViewModel : ObservableObject
 
     public SystemMonitorWidgetSettings ToSettings()
     {
-        return new SystemMonitorWidgetSettings { ScalePercent = ScalePercent };
+        return new SystemMonitorWidgetSettings
+        {
+            SettingsVersion = 1,
+            ScalePercent = ScalePercent
+        };
     }
 }
