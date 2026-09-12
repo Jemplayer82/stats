@@ -6,8 +6,8 @@ namespace StatsUsageWidget.Widgets.SystemMonitor.ViewModels;
 
 public partial class SystemMonitorViewModel : ObservableObject, IDisposable
 {
-    private const double BaseWidgetWidth = 380;
-    private const double BaseWidgetHeight = 390;
+    private const double BaseWidgetWidth = 300;
+    private const double BaseWidgetHeight = 310;
     private readonly SystemMonitorSettingsViewModel _settings;
     private readonly SystemMetricsService _metrics = new();
     private readonly DispatcherTimer _timer;
