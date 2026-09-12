@@ -7,3 +7,4 @@ __pycache__
 *.db
 session-*.md
 usage-dashboard.service
+widget-launcher
