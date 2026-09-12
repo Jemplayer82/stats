@@ -25,12 +25,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isLoading;
 
+    [ObservableProperty]
+    private double _transparencyPercent;
+
+    public double BackgroundOpacity => Math.Clamp(1 - (TransparencyPercent / 100), 0.1, 1);
+
     public MainViewModel(SettingsViewModel settings)
     {
         _settings = settings;
         _settings.SettingsApplied += SettingsApplied;
+        TransparencyPercent = _settings.TransparencyPercent;
         _ = RefreshAsync();
     }
+
+    partial void OnTransparencyPercentChanged(double value) =>
+        OnPropertyChanged(nameof(BackgroundOpacity));
 
     [RelayCommand]
     public async Task RefreshAsync()
@@ -72,6 +81,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void SettingsApplied(object? sender, EventArgs e)
     {
+        TransparencyPercent = _settings.TransparencyPercent;
         _ = RefreshAsync();
     }
 

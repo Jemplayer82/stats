@@ -16,6 +16,7 @@ public partial class SettingsViewModel : ObservableObject
     public bool ShowOllama { get; private set; } = true;
     public bool ShowGemini { get; private set; } = true;
     public int RefreshSeconds { get; private set; } = 60;
+    public int TransparencyPercent { get; private set; } = 5;
 
     [ObservableProperty]
     private string _tempStatsBaseUrl = "https://stats.txferguson.net";
@@ -36,6 +37,9 @@ public partial class SettingsViewModel : ObservableObject
     private int _tempRefreshSeconds = 60;
 
     [ObservableProperty]
+    private int _tempTransparencyPercent = 5;
+
+    [ObservableProperty]
     private string _connectionStatus = string.Empty;
 
     [ObservableProperty]
@@ -52,7 +56,8 @@ public partial class SettingsViewModel : ObservableObject
             ShowClaude = useTemporary ? TempShowClaude : ShowClaude,
             ShowOllama = useTemporary ? TempShowOllama : ShowOllama,
             ShowGemini = useTemporary ? TempShowGemini : ShowGemini,
-            RefreshSeconds = useTemporary ? TempRefreshSeconds : RefreshSeconds
+            RefreshSeconds = useTemporary ? TempRefreshSeconds : RefreshSeconds,
+            TransparencyPercent = useTemporary ? TempTransparencyPercent : TransparencyPercent
         };
     }
 
@@ -68,6 +73,7 @@ public partial class SettingsViewModel : ObservableObject
         RefreshSeconds = RefreshOptions.Contains(settings.RefreshSeconds)
             ? settings.RefreshSeconds
             : 60;
+        TransparencyPercent = Math.Clamp(settings.TransparencyPercent, 0, 90);
         LoadTempSettings();
         OnPropertyChanged(string.Empty);
         SettingsApplied?.Invoke(this, EventArgs.Empty);
@@ -81,6 +87,7 @@ public partial class SettingsViewModel : ObservableObject
         TempShowOllama = ShowOllama;
         TempShowGemini = ShowGemini;
         TempRefreshSeconds = RefreshSeconds;
+        TempTransparencyPercent = TransparencyPercent;
         ConnectionStatus = string.Empty;
     }
 
@@ -97,6 +104,7 @@ public partial class SettingsViewModel : ObservableObject
         RefreshSeconds = RefreshOptions.Contains(TempRefreshSeconds)
             ? TempRefreshSeconds
             : 60;
+        TransparencyPercent = Math.Clamp(TempTransparencyPercent, 0, 90);
         OnPropertyChanged(string.Empty);
         SettingsApplied?.Invoke(this, EventArgs.Empty);
     }

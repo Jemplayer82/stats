@@ -8,4 +8,5 @@ public sealed class WidgetSettings
     public bool ShowOllama { get; set; } = true;
     public bool ShowGemini { get; set; } = true;
     public int RefreshSeconds { get; set; } = 60;
+    public int TransparencyPercent { get; set; } = 5;
 }

@@ -10,8 +10,11 @@
         </Style>
     </UserControl.Resources>
 
-    <Border Background="#F20B1018" BorderBrush="#FF273244" BorderThickness="1"
+    <Border BorderBrush="#FF273244" BorderThickness="1"
             CornerRadius="18" Padding="14">
+        <Border.Background>
+            <SolidColorBrush Color="#FF0B1018" Opacity="{Binding BackgroundOpacity}" />
+        </Border.Background>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -48,9 +51,12 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="#B3121925" BorderBrush="#FF263244"
-                                    BorderThickness="1" CornerRadius="10"
-                                    Padding="9" Margin="4">
+                            <Border BorderBrush="#FF263244" BorderThickness="1"
+                                    CornerRadius="10" Padding="9" Margin="4">
+                                <Border.Background>
+                                    <SolidColorBrush Color="#FF121925"
+                                        Opacity="{Binding DataContext.BackgroundOpacity, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                </Border.Background>
                                 <StackPanel>
                                     <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
