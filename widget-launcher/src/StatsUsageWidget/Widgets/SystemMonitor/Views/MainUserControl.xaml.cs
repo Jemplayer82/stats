@@ -20,11 +20,19 @@ public partial class MainUserControl : UserControl
     private void ApplyHostWindowSize()
     {
         var hostWindow = Window.GetWindow(this);
-        if (hostWindow is null ||
-            string.Equals(hostWindow.Title, "Widget Launcher", StringComparison.OrdinalIgnoreCase))
+        if (hostWindow is null)
             return;
 
-        hostWindow.Width = Width + 104;
-        hostWindow.Height = Height + 24;
+        var requiredWidth = Width + 104;
+        var requiredHeight = Height + 24;
+
+        hostWindow.MinWidth = Math.Max(hostWindow.MinWidth, requiredWidth);
+        hostWindow.MinHeight = Math.Max(hostWindow.MinHeight, requiredHeight);
+
+        if (hostWindow.Width < requiredWidth)
+            hostWindow.Width = requiredWidth;
+
+        if (hostWindow.Height < requiredHeight)
+            hostWindow.Height = requiredHeight;
     }
 }

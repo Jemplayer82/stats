@@ -2,45 +2,45 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:StatsUsageWidget.Widgets.SystemMonitor.Views"
-             Width="360" Height="350"
+             Width="380" Height="390"
              Background="Transparent">
     <Border Background="Transparent" BorderBrush="Transparent" BorderThickness="0"
             Padding="0" Margin="0">
-        <Canvas Width="360" Height="350" ClipToBounds="False">
-            <local:DialGauge Width="112" Height="112"
-                             Canvas.Left="8" Canvas.Top="4"
+        <Canvas Width="380" Height="390" ClipToBounds="False">
+            <local:DialGauge Width="140" Height="140"
+                             Canvas.Left="0" Canvas.Top="0"
                              Progress="{Binding MemoryPercent}"
                              Accent="#FF4EA1FF"
                              Label="RAM"
                              ValueText="{Binding MemoryText}" />
 
-            <local:DialGauge Width="112" Height="112"
-                             Canvas.Left="240" Canvas.Top="4"
+            <local:DialGauge Width="140" Height="140"
+                             Canvas.Left="240" Canvas.Top="0"
                              Progress="{Binding NetworkDialPercent}"
                              Accent="#FFB28CFF"
                              Label="NETWORK"
                              ValueText="{Binding NetworkText}" />
 
-            <local:DialGauge Width="170" Height="170"
-                             Canvas.Left="95" Canvas.Top="85"
-                             Progress="{Binding CpuPercent}"
-                             Accent="#FF4FE08B"
-                             Label="CPU"
-                             ValueText="{Binding CpuText}" />
-
-            <local:DialGauge Width="112" Height="112"
-                             Canvas.Left="8" Canvas.Top="234"
+            <local:DialGauge Width="140" Height="140"
+                             Canvas.Left="0" Canvas.Top="250"
                              Progress="{Binding DiskReadDialPercent}"
                              Accent="#FFFFBE55"
                              Label="DISK READ"
                              ValueText="{Binding DiskReadText}" />
 
-            <local:DialGauge Width="112" Height="112"
-                             Canvas.Left="240" Canvas.Top="234"
+            <local:DialGauge Width="140" Height="140"
+                             Canvas.Left="240" Canvas.Top="250"
                              Progress="{Binding DiskWriteDialPercent}"
                              Accent="#FFFF7D4D"
                              Label="DISK WRITE"
                              ValueText="{Binding DiskWriteText}" />
+
+            <local:DialGauge Width="186" Height="186"
+                             Canvas.Left="97" Canvas.Top="91"
+                             Progress="{Binding CpuPercent}"
+                             Accent="#FF4FE08B"
+                             Label="CPU"
+                             ValueText="{Binding CpuText}" />
         </Canvas>
     </Border>
 </UserControl>

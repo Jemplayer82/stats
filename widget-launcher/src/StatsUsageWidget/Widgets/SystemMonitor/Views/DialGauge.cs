@@ -64,8 +64,8 @@ public sealed class DialGauge : FrameworkElement
         base.OnRender(drawingContext);
         var center = new Point(ActualWidth / 2, ActualHeight / 2);
         var radius = Math.Max(1, Math.Min(ActualWidth, ActualHeight) / 2 - 11);
-        const double startAngle = -90;
-        const double totalSweep = 360;
+        const double startAngle = 180;
+        const double totalSweep = 270;
 
         var faceBrush = new SolidColorBrush(Color.FromArgb(255, 9, 13, 18));
         drawingContext.DrawEllipse(faceBrush, null, center, radius + 6, radius + 6);
@@ -76,14 +76,17 @@ public sealed class DialGauge : FrameworkElement
         var innerRimPen = new Pen(new SolidColorBrush(Color.FromArgb(255, 57, 68, 78)), 1);
         drawingContext.DrawEllipse(null, innerRimPen, center, radius + 2, radius + 2);
 
-        DrawTicks(drawingContext, center, radius, startAngle);
+        DrawTicks(drawingContext, center, radius, startAngle, totalSweep);
 
         var backgroundPen = new Pen(new SolidColorBrush(Color.FromArgb(255, 43, 49, 54)), 7)
         {
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round
         };
-        drawingContext.DrawEllipse(null, backgroundPen, center, radius - 3, radius - 3);
+        drawingContext.DrawGeometry(
+            null,
+            backgroundPen,
+            CreateArc(center, radius - 3, startAngle, totalSweep));
 
         var progress = Math.Clamp(Progress, 0, 100);
         if (progress > 0)
@@ -93,17 +96,10 @@ public sealed class DialGauge : FrameworkElement
                 StartLineCap = PenLineCap.Round,
                 EndLineCap = PenLineCap.Round
             };
-            if (progress >= 99.9)
-            {
-                drawingContext.DrawEllipse(null, accentPen, center, radius - 3, radius - 3);
-            }
-            else
-            {
-                drawingContext.DrawGeometry(
-                    null,
-                    accentPen,
-                    CreateArc(center, radius - 3, startAngle, totalSweep * progress / 100));
-            }
+            drawingContext.DrawGeometry(
+                null,
+                accentPen,
+                CreateArc(center, radius - 3, startAngle, totalSweep * progress / 100));
         }
 
         var needleAngle = startAngle + (totalSweep * progress / 100);
@@ -123,13 +119,15 @@ public sealed class DialGauge : FrameworkElement
         DrawingContext drawingContext,
         Point center,
         double radius,
-        double startAngle)
+        double startAngle,
+        double totalSweep)
     {
-        for (var index = 0; index < 80; index++)
+        const int tickCount = 60;
+        for (var index = 0; index <= tickCount; index++)
         {
             var major = index % 10 == 0;
             var medium = index % 5 == 0;
-            var angle = startAngle + (index * 4.5);
+            var angle = startAngle + (index * totalSweep / tickCount);
             var outer = PointOnCircle(center, radius + 1, angle);
             var inner = PointOnCircle(center, radius - (major ? 11 : medium ? 8 : 5), angle);
             var pen = new Pen(
@@ -141,7 +139,10 @@ public sealed class DialGauge : FrameworkElement
         }
 
         var redlinePen = new Pen(new SolidColorBrush(Color.FromArgb(255, 220, 55, 55)), 3);
-        drawingContext.DrawGeometry(null, redlinePen, CreateArc(center, radius - 3, 234, 54));
+        drawingContext.DrawGeometry(
+            null,
+            redlinePen,
+            CreateArc(center, radius - 3, startAngle + (totalSweep * 0.78), totalSweep * 0.22));
     }
 
     private void DrawCenterText(DrawingContext drawingContext, Point center)
