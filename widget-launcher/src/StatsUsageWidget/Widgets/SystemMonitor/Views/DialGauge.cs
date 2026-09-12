@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -20,6 +21,20 @@ public sealed class DialGauge : FrameworkElement
             typeof(DialGauge),
             new FrameworkPropertyMetadata(Brushes.CornflowerBlue, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty LabelProperty =
+        DependencyProperty.Register(
+            nameof(Label),
+            typeof(string),
+            typeof(DialGauge),
+            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty ValueTextProperty =
+        DependencyProperty.Register(
+            nameof(ValueText),
+            typeof(string),
+            typeof(DialGauge),
+            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public double Progress
     {
         get => (double)GetValue(ProgressProperty);
@@ -32,6 +47,18 @@ public sealed class DialGauge : FrameworkElement
         set => SetValue(AccentProperty, value);
     }
 
+    public string Label
+    {
+        get => (string)GetValue(LabelProperty);
+        set => SetValue(LabelProperty, value);
+    }
+
+    public string ValueText
+    {
+        get => (string)GetValue(ValueTextProperty);
+        set => SetValue(ValueTextProperty, value);
+    }
+
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
@@ -40,15 +67,18 @@ public sealed class DialGauge : FrameworkElement
         const double startAngle = -90;
         const double totalSweep = 360;
 
-        var faceBrush = new SolidColorBrush(Color.FromArgb(255, 18, 29, 43));
+        var faceBrush = new SolidColorBrush(Color.FromArgb(255, 9, 13, 18));
         drawingContext.DrawEllipse(faceBrush, null, center, radius + 6, radius + 6);
 
-        var outerPen = new Pen(new SolidColorBrush(Color.FromArgb(255, 51, 70, 95)), 2);
+        var outerPen = new Pen(new SolidColorBrush(Color.FromArgb(255, 181, 191, 201)), 2);
         drawingContext.DrawEllipse(null, outerPen, center, radius + 5, radius + 5);
+
+        var innerRimPen = new Pen(new SolidColorBrush(Color.FromArgb(255, 57, 68, 78)), 1);
+        drawingContext.DrawEllipse(null, innerRimPen, center, radius + 2, radius + 2);
 
         DrawTicks(drawingContext, center, radius, startAngle);
 
-        var backgroundPen = new Pen(new SolidColorBrush(Color.FromArgb(255, 38, 50, 68)), 7)
+        var backgroundPen = new Pen(new SolidColorBrush(Color.FromArgb(255, 43, 49, 54)), 7)
         {
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round
@@ -78,14 +108,15 @@ public sealed class DialGauge : FrameworkElement
 
         var needleAngle = startAngle + (totalSweep * progress / 100);
         var needleEnd = PointOnCircle(center, radius - 14, needleAngle);
-        var needlePen = new Pen(Accent ?? Brushes.CornflowerBlue, 2.5)
+        var needlePen = new Pen(Brushes.White, ActualWidth >= 150 ? 3.2 : 2.2)
         {
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round
         };
         drawingContext.DrawLine(needlePen, center, needleEnd);
-        drawingContext.DrawEllipse(Accent ?? Brushes.CornflowerBlue, null, center, 5, 5);
-        drawingContext.DrawEllipse(Brushes.White, null, center, 2, 2);
+        drawingContext.DrawEllipse(Brushes.White, null, center, ActualWidth >= 150 ? 6 : 4, ActualWidth >= 150 ? 6 : 4);
+        drawingContext.DrawEllipse(Brushes.Black, null, center, ActualWidth >= 150 ? 2.5 : 1.7, ActualWidth >= 150 ? 2.5 : 1.7);
+        DrawCenterText(drawingContext, center);
     }
 
     private static void DrawTicks(
@@ -94,19 +125,47 @@ public sealed class DialGauge : FrameworkElement
         double radius,
         double startAngle)
     {
-        for (var index = 0; index < 40; index++)
+        for (var index = 0; index < 80; index++)
         {
-            var major = index % 5 == 0;
-            var angle = startAngle + (index * 9);
+            var major = index % 10 == 0;
+            var medium = index % 5 == 0;
+            var angle = startAngle + (index * 4.5);
             var outer = PointOnCircle(center, radius + 1, angle);
-            var inner = PointOnCircle(center, radius - (major ? 9 : 6), angle);
+            var inner = PointOnCircle(center, radius - (major ? 11 : medium ? 8 : 5), angle);
             var pen = new Pen(
                 new SolidColorBrush(major
-                    ? Color.FromArgb(255, 215, 224, 236)
-                    : Color.FromArgb(170, 148, 163, 184)),
-                major ? 1.5 : 1);
+                    ? Color.FromArgb(255, 242, 244, 245)
+                    : Color.FromArgb(190, 185, 193, 198)),
+                major ? 1.8 : medium ? 1.2 : 0.8);
             drawingContext.DrawLine(pen, inner, outer);
         }
+
+        var redlinePen = new Pen(new SolidColorBrush(Color.FromArgb(255, 220, 55, 55)), 3);
+        drawingContext.DrawGeometry(null, redlinePen, CreateArc(center, radius - 3, 234, 54));
+    }
+
+    private void DrawCenterText(DrawingContext drawingContext, Point center)
+    {
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var label = new FormattedText(
+            Label,
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            new Typeface("Segoe UI Semibold"),
+            ActualWidth >= 150 ? 13 : 9,
+            Brushes.White,
+            dpi);
+        var value = new FormattedText(
+            ValueText,
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            new Typeface("Segoe UI Semibold"),
+            ActualWidth >= 150 ? 22 : 12,
+            Brushes.White,
+            dpi);
+
+        drawingContext.DrawText(label, new Point(center.X - (label.Width / 2), center.Y - (ActualWidth >= 150 ? 20 : 16)));
+        drawingContext.DrawText(value, new Point(center.X - (value.Width / 2), center.Y + (ActualWidth >= 150 ? 1 : 0)));
     }
 
     private static StreamGeometry CreateArc(Point center, double radius, double startAngle, double sweep)

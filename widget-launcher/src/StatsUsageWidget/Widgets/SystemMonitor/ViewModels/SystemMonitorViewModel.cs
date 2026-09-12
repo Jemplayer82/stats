@@ -19,6 +19,12 @@ public partial class SystemMonitorViewModel : ObservableObject, IDisposable
     private double _diskMegabytesPerSecond;
 
     [ObservableProperty]
+    private double _diskReadMegabytesPerSecond;
+
+    [ObservableProperty]
+    private double _diskWriteMegabytesPerSecond;
+
+    [ObservableProperty]
     private double _networkMegabitsPerSecond;
 
     [ObservableProperty]
@@ -31,10 +37,14 @@ public partial class SystemMonitorViewModel : ObservableObject, IDisposable
     private string _statusText = "Starting monitor…";
 
     public double DiskDialPercent => ToDialPercent(DiskMegabytesPerSecond, 100);
+    public double DiskReadDialPercent => ToDialPercent(DiskReadMegabytesPerSecond, 100);
+    public double DiskWriteDialPercent => ToDialPercent(DiskWriteMegabytesPerSecond, 100);
     public double NetworkDialPercent => ToDialPercent(NetworkMegabitsPerSecond, 1000);
     public string CpuText => $"{Math.Round(CpuPercent):0}%";
     public string MemoryText => $"{Math.Round(MemoryPercent):0}%";
     public string DiskText => $"{DiskMegabytesPerSecond:0.0} MB/s";
+    public string DiskReadText => $"{DiskReadMegabytesPerSecond:0.0} MB/s";
+    public string DiskWriteText => $"{DiskWriteMegabytesPerSecond:0.0} MB/s";
     public string NetworkText => $"{NetworkMegabitsPerSecond:0.0} Mb/s";
 
     public SystemMonitorViewModel()
@@ -53,15 +63,21 @@ public partial class SystemMonitorViewModel : ObservableObject, IDisposable
             CpuPercent = snapshot.CpuPercent;
             MemoryPercent = snapshot.MemoryPercent;
             DiskMegabytesPerSecond = snapshot.DiskMegabytesPerSecond;
+            DiskReadMegabytesPerSecond = snapshot.DiskReadMegabytesPerSecond;
+            DiskWriteMegabytesPerSecond = snapshot.DiskWriteMegabytesPerSecond;
             NetworkMegabitsPerSecond = snapshot.NetworkMegabitsPerSecond;
             DiskDetail = snapshot.DiskDetail;
             NetworkDetail = snapshot.NetworkDetail;
             StatusText = "Live · updates every second";
             OnPropertyChanged(nameof(DiskDialPercent));
+            OnPropertyChanged(nameof(DiskReadDialPercent));
+            OnPropertyChanged(nameof(DiskWriteDialPercent));
             OnPropertyChanged(nameof(NetworkDialPercent));
             OnPropertyChanged(nameof(CpuText));
             OnPropertyChanged(nameof(MemoryText));
             OnPropertyChanged(nameof(DiskText));
+            OnPropertyChanged(nameof(DiskReadText));
+            OnPropertyChanged(nameof(DiskWriteText));
             OnPropertyChanged(nameof(NetworkText));
         }
         catch (Exception ex)
