@@ -2,7 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:StatsUsageWidget.Widgets.SystemMonitor.Views"
-             Width="{Binding WidgetWidth}" Height="{Binding WidgetHeight}"
+             Width="{Binding WidgetWidth, FallbackValue=380, TargetNullValue=380}"
+             Height="{Binding WidgetHeight, FallbackValue=390, TargetNullValue=390}"
              Background="Transparent">
     <Viewbox Stretch="Fill">
         <Border Width="380" Height="390"

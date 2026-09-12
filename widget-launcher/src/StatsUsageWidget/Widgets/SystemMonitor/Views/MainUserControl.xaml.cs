@@ -29,13 +29,15 @@ public partial class MainUserControl : UserControl
         if (hostWindow is null)
             return;
 
-        if (double.IsNaN(Width) || double.IsNaN(Height))
+        if (double.IsNaN(ActualWidth) || double.IsNaN(ActualHeight) ||
+            ActualWidth <= 0 || ActualHeight <= 0 ||
+            ActualWidth > 800 || ActualHeight > 800)
             return;
 
         try
         {
-            hostWindow.Width = Width + 104;
-            hostWindow.Height = Height + 24;
+            hostWindow.Width = ActualWidth + 104;
+            hostWindow.Height = ActualHeight + 24;
         }
         catch (InvalidOperationException)
         {
