@@ -36,7 +36,7 @@ public partial class App : Application
                 <binding template='ToastGeneric'>
                   <image src='Images/App/WidgetLauncherWatermark.png' />
                   <text>Opening Widget Launcher…</text>
-                  <text>The Stats Usage widget is ready to add.</text>
+                  <text>The Stats Usage and Apple Music widgets are ready to add.</text>
                 </binding>
               </visual>
             </toast>

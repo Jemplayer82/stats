@@ -1,0 +1,36 @@
+<UserControl x:Class="StatsUsageWidget.Widgets.Music.Views.AppleMusicSettingsUserControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinWidth="300">
+    <StackPanel>
+        <TextBlock Text="Apple Music Widget" Foreground="#FFE2E8F0"
+                   FontSize="21" FontWeight="SemiBold" />
+        <TextBlock Text="Adjust the widget background without affecting the album art, text, or controls."
+                   Foreground="#FF94A3B8" TextWrapping="Wrap" Margin="0,4,0,20" />
+
+        <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Transparency" Foreground="#FFE2E8F0"
+                       FontWeight="SemiBold" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding TemporaryTransparencyPercent, StringFormat={}{0:0}%}"
+                       Foreground="#FFFF4D6D" FontWeight="SemiBold" />
+        </Grid>
+
+        <Slider Minimum="0" Maximum="100" TickFrequency="5"
+                IsSnapToTickEnabled="True"
+                Value="{Binding TemporaryTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        <Grid Margin="0,4,0,0">
+            <TextBlock Text="Solid" Foreground="#FF94A3B8" FontSize="11" />
+            <TextBlock Text="Clear" Foreground="#FF94A3B8" FontSize="11"
+                       HorizontalAlignment="Right" />
+        </Grid>
+
+        <TextBlock Text="Use Widget Launcher's OK button to keep this transparency setting."
+                   Foreground="#FF64748B" FontSize="11" TextWrapping="Wrap"
+                   Margin="0,20,0,0" />
+    </StackPanel>
+</UserControl>

@@ -35,8 +35,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\StatsUsageWidget\bin\$(Platform)\$(Configuration)\**\*.*">
-      <Link>Public\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    <Content Include="..\StatsUsageWidget\bin\$(Platform)\$(Configuration)\net10.0-windows10.0.19041.0\**\*.*">
+      <Link>Public\net10.0-windows10.0.19041.0\%(RecursiveDir)%(FileName)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
