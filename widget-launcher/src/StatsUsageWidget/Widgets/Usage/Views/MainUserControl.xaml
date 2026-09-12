@@ -9,7 +9,8 @@
         </Style>
     </UserControl.Resources>
 
-    <Border Width="720" Height="300" BorderBrush="#FF273244" BorderThickness="1"
+    <Border Width="{Binding WidgetBaseWidth}" Height="{Binding WidgetBaseHeight}"
+            BorderBrush="#FF273244" BorderThickness="1"
             CornerRadius="12" Padding="8">
         <Border.LayoutTransform>
             <ScaleTransform ScaleX="{Binding UiScale}" ScaleY="{Binding UiScale}" />
@@ -18,14 +19,10 @@
             <SolidColorBrush Color="#FF0B1018" Opacity="{Binding BackgroundOpacity}" />
         </Border.Background>
         <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
             <StackPanel>
                 <TextBlock Text="{Binding StatusText}" Style="{StaticResource QuietText}"
-                           TextWrapping="Wrap" Margin="2,0,2,2" />
+                           TextWrapping="Wrap" Margin="2,0,2,2"
+                           Visibility="{Binding HasStatusText, Converter={StaticResource BoolToVisibility}}" />
                 <ItemsControl ItemsSource="{Binding Services}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -53,7 +50,8 @@
                                                        FontSize="13" FontWeight="SemiBold" />
                                         </StackPanel>
                                         <TextBlock Grid.Column="1" Text="{Binding StatusText}"
-                                                   Style="{StaticResource QuietText}" />
+                                                   Style="{StaticResource QuietText}"
+                                                   TextTrimming="CharacterEllipsis" />
                                     </Grid>
 
                                     <ItemsControl ItemsSource="{Binding Metrics}">
@@ -94,14 +92,6 @@
                 </ItemsControl>
             </StackPanel>
 
-            <Grid Grid.Row="1" Margin="2,3,2,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding LastUpdated}" Style="{StaticResource QuietText}" />
-                <TextBlock Grid.Column="1" Text="Billy · Stats" Style="{StaticResource QuietText}" />
-            </Grid>
         </Grid>
     </Border>
 </UserControl>

@@ -13,6 +13,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly StatsUsageClient _client = new();
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly CancellationTokenSource _shutdown = new();
+    private int _refreshQueued;
 
     public ObservableCollection<ServiceUsageGroup> Services { get; } = [];
 
@@ -33,6 +34,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public double BackgroundOpacity => Math.Clamp(1 - (TransparencyPercent / 100), 0.1, 1);
     public double UiScale => ScalePercent / 100;
+    public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
+    public double WidgetBaseWidth => 720;
+    public double WidgetBaseHeight => Math.Clamp(
+        12 + (Math.Max(Services.Count, 1) * 76) +
+        (HasStatusText ? 18 : 0),
+        110,
+        334);
 
     public MainViewModel(SettingsViewModel settings)
     {
@@ -49,10 +57,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
     partial void OnScalePercentChanged(double value) =>
         OnPropertyChanged(nameof(UiScale));
 
+    partial void OnStatusTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasStatusText));
+        OnPropertyChanged(nameof(WidgetBaseHeight));
+    }
+
     [RelayCommand]
     public async Task RefreshAsync()
     {
-        if (!await _refreshGate.WaitAsync(0)) return;
+        if (!await _refreshGate.WaitAsync(0))
+        {
+            Interlocked.Exchange(ref _refreshQueued, 1);
+            return;
+        }
         IsLoading = true;
         StatusText = "Refreshing…";
 
@@ -66,6 +84,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 foreach (var group in groups) Services.Add(group);
                 StatusText = groups.Count == 0 ? "No services selected" : string.Empty;
                 LastUpdated = "Updated " + DateTime.Now.ToString("h:mm tt");
+                OnPropertyChanged(nameof(WidgetBaseHeight));
             });
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
@@ -78,12 +97,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 Services.Clear();
                 StatusText = "Stats is unavailable · " + ex.Message;
                 LastUpdated = "Check the address in widget settings";
+                OnPropertyChanged(nameof(WidgetBaseHeight));
             });
         }
         finally
         {
             IsLoading = false;
             _refreshGate.Release();
+            if (Interlocked.Exchange(ref _refreshQueued, 0) == 1 && !_shutdown.IsCancellationRequested)
+                _ = RefreshAsync();
         }
     }
 

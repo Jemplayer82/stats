@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using StatsUsageWidget.Widgets.Usage.ViewModels;
 
@@ -8,8 +10,7 @@ namespace StatsUsageWidget.Widgets.Usage.Views;
 
 public partial class MainUserControl : UserControl
 {
-    private const double BaseWindowWidth = 720;
-    private const double BaseWindowHeight = 300;
+    private const double HostHeightAllowance = 24;
     private MainViewModel? _viewModel;
 
     public MainUserControl()
@@ -47,7 +48,7 @@ public partial class MainUserControl : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.UiScale))
+        if (e.PropertyName is nameof(MainViewModel.UiScale) or nameof(MainViewModel.WidgetBaseHeight))
             Dispatcher.BeginInvoke(ApplyHostWindowSize, DispatcherPriority.Loaded);
     }
 
@@ -61,14 +62,70 @@ public partial class MainUserControl : UserControl
             return;
 
         var scale = Math.Clamp(_viewModel.UiScale, 0.75, 1.5);
-        var newWidth = BaseWindowWidth * scale;
-        var newHeight = BaseWindowHeight * scale;
+        var newWidth = _viewModel.WidgetBaseWidth * scale;
+        var newHeight = (_viewModel.WidgetBaseHeight * scale) + HostHeightAllowance;
         var centerX = hostWindow.Left + (hostWindow.Width / 2);
         var centerY = hostWindow.Top + (hostWindow.Height / 2);
+        var workArea = GetMonitorWorkArea(hostWindow);
 
         hostWindow.Width = newWidth;
         hostWindow.Height = newHeight;
-        hostWindow.Left = centerX - (newWidth / 2);
-        hostWindow.Top = centerY - (newHeight / 2);
+        hostWindow.Left = Math.Clamp(
+            centerX - (newWidth / 2),
+            workArea.Left,
+            Math.Max(workArea.Left, workArea.Right - newWidth));
+        hostWindow.Top = Math.Clamp(
+            centerY - (newHeight / 2),
+            workArea.Top,
+            Math.Max(workArea.Top, workArea.Bottom - newHeight));
+    }
+
+    private static Rect GetMonitorWorkArea(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        var monitor = MonitorFromWindow(handle, 2);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info))
+            return SystemParameters.WorkArea;
+
+        var screenOrigin = window.PointToScreen(new Point(0, 0));
+        var fromDevice = PresentationSource.FromVisual(window)?.CompositionTarget?.TransformFromDevice
+            ?? System.Windows.Media.Matrix.Identity;
+        var topLeft = fromDevice.Transform(new Point(
+            info.WorkArea.Left - screenOrigin.X,
+            info.WorkArea.Top - screenOrigin.Y));
+        var bottomRight = fromDevice.Transform(new Point(
+            info.WorkArea.Right - screenOrigin.X,
+            info.WorkArea.Bottom - screenOrigin.Y));
+        return new Rect(
+            window.Left + topLeft.X,
+            window.Top + topLeft.Y,
+            bottomRight.X - topLeft.X,
+            bottomRight.Y - topLeft.Y);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr windowHandle, uint flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr monitorHandle, ref MonitorInfo monitorInfo);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect WorkArea;
+        public uint Flags;
     }
 }
