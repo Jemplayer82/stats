@@ -2,11 +2,13 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:StatsUsageWidget.Widgets.SystemMonitor.Views"
-             Width="380" Height="390"
+             Width="{Binding WidgetWidth}" Height="{Binding WidgetHeight}"
              Background="Transparent">
-    <Border Background="Transparent" BorderBrush="Transparent" BorderThickness="0"
-            Padding="0" Margin="0">
-        <Canvas Width="380" Height="390" ClipToBounds="False">
+    <Viewbox Stretch="Fill">
+        <Border Width="380" Height="390"
+                Background="Transparent" BorderBrush="Transparent" BorderThickness="0"
+                Padding="0" Margin="0">
+            <Canvas Width="380" Height="390" ClipToBounds="False">
             <local:DialGauge Width="140" Height="140"
                              Canvas.Left="0" Canvas.Top="0"
                              Progress="{Binding MemoryPercent}"
@@ -41,6 +43,7 @@
                              Accent="#FF4FE08B"
                              Label="CPU"
                              ValueText="{Binding CpuText}" />
-        </Canvas>
-    </Border>
+            </Canvas>
+        </Border>
+    </Viewbox>
 </UserControl>

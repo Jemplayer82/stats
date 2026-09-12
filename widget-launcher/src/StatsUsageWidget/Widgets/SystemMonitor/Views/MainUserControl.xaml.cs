@@ -10,9 +10,15 @@ public partial class MainUserControl : UserControl
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        SizeChanged += OnSizeChanged;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        Dispatcher.BeginInvoke(ApplyHostWindowSize, DispatcherPriority.Loaded);
+    }
+
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
     {
         Dispatcher.BeginInvoke(ApplyHostWindowSize, DispatcherPriority.Loaded);
     }
@@ -21,6 +27,9 @@ public partial class MainUserControl : UserControl
     {
         var hostWindow = Window.GetWindow(this);
         if (hostWindow is null)
+            return;
+
+        if (double.IsNaN(Width) || double.IsNaN(Height))
             return;
 
         try

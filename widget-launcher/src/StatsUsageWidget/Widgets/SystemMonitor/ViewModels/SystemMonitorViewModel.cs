@@ -6,6 +6,9 @@ namespace StatsUsageWidget.Widgets.SystemMonitor.ViewModels;
 
 public partial class SystemMonitorViewModel : ObservableObject, IDisposable
 {
+    private const double BaseWidgetWidth = 380;
+    private const double BaseWidgetHeight = 390;
+    private readonly SystemMonitorSettingsViewModel _settings;
     private readonly SystemMetricsService _metrics = new();
     private readonly DispatcherTimer _timer;
 
@@ -46,9 +49,14 @@ public partial class SystemMonitorViewModel : ObservableObject, IDisposable
     public string DiskReadText => $"{DiskReadMegabytesPerSecond:0.0} MB/s";
     public string DiskWriteText => $"{DiskWriteMegabytesPerSecond:0.0} MB/s";
     public string NetworkText => $"{NetworkMegabitsPerSecond:0.0} Mb/s";
+    public double UiScale => _settings.UiScale;
+    public double WidgetWidth => BaseWidgetWidth * UiScale;
+    public double WidgetHeight => BaseWidgetHeight * UiScale;
 
-    public SystemMonitorViewModel()
+    public SystemMonitorViewModel(SystemMonitorSettingsViewModel settings)
     {
+        _settings = settings;
+        _settings.SettingsApplied += OnSettingsApplied;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += OnTimerTick;
         Update();
@@ -88,12 +96,20 @@ public partial class SystemMonitorViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _settings.SettingsApplied -= OnSettingsApplied;
         _timer.Stop();
         _timer.Tick -= OnTimerTick;
         _metrics.Dispose();
     }
 
     private void OnTimerTick(object? sender, EventArgs e) => Update();
+
+    private void OnSettingsApplied(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(UiScale));
+        OnPropertyChanged(nameof(WidgetWidth));
+        OnPropertyChanged(nameof(WidgetHeight));
+    }
 
     private static double ToDialPercent(double value, double fullScale)
     {
