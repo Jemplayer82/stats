@@ -23,16 +23,14 @@ public partial class MainUserControl : UserControl
         if (hostWindow is null)
             return;
 
-        var requiredWidth = Width + 104;
-        var requiredHeight = Height + 24;
-
-        hostWindow.MinWidth = Math.Max(hostWindow.MinWidth, requiredWidth);
-        hostWindow.MinHeight = Math.Max(hostWindow.MinHeight, requiredHeight);
-
-        if (hostWindow.Width < requiredWidth)
-            hostWindow.Width = requiredWidth;
-
-        if (hostWindow.Height < requiredHeight)
-            hostWindow.Height = requiredHeight;
+        try
+        {
+            hostWindow.Width = Width + 104;
+            hostWindow.Height = Height + 24;
+        }
+        catch (InvalidOperationException)
+        {
+            // Some launcher hosts manage their own size and reject widget resizing.
+        }
     }
 }
