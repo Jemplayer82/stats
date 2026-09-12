@@ -38,6 +38,27 @@
       "MaximumInstances": 1,
       "SupportsTransparency": true,
       "SupportsSkins": false
+    },
+    {
+      "SearchTags": [
+        "System Monitor",
+        "CPU",
+        "RAM",
+        "Memory",
+        "Disk",
+        "Network",
+        "Performance"
+      ],
+      "DisplayName": "System Monitor",
+      "GuidIdentifier": "7b3e4e5c-48d5-4b50-b9d8-2919d82b0ab7",
+      "Version": "6.0.1",
+      "Description": "Combined CPU, RAM, hard-drive, and network activity dials.",
+      "AssemblyName": "StatsUsageWidget.dll",
+      "MainClass": "StatsUsageWidget.Widgets.SystemMonitor.SystemMonitorExtension",
+      "ImagePath": "Assets/WidgetIcons/StatsUsageWidgetIcon.png",
+      "MaximumInstances": 0,
+      "SupportsTransparency": true,
+      "SupportsSkins": false
     }
   ]
 }

@@ -1,0 +1,51 @@
+<UserControl x:Class="StatsUsageWidget.Widgets.SystemMonitor.Views.MainUserControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:StatsUsageWidget.Widgets.SystemMonitor.Views"
+             Width="360" Height="276">
+    <Border BorderBrush="#FF273244" BorderThickness="1" CornerRadius="12" Padding="10">
+        <Border.Background>
+            <SolidColorBrush Color="#FF0B1018" Opacity="0.96" />
+        </Border.Background>
+        <StackPanel>
+            <Grid Margin="2,0,2,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="SYSTEM MONITOR" Foreground="White" FontSize="13" FontWeight="SemiBold" />
+                <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="#FF94A3B8"
+                           FontSize="10" HorizontalAlignment="Right" />
+            </Grid>
+            <UniformGrid Columns="2" Rows="2">
+                <StackPanel Margin="2,4,6,2">
+                    <TextBlock Text="CPU" Foreground="#FFD7E0EC" FontSize="10" HorizontalAlignment="Center" />
+                    <local:DialGauge Width="128" Height="78" Progress="{Binding CpuPercent}" Accent="#FF34D399" />
+                    <TextBlock Text="{Binding CpuText}" Foreground="White" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    <TextBlock Text="usage" Foreground="#FF94A3B8" FontSize="9" HorizontalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Margin="6,4,2,2">
+                    <TextBlock Text="RAM" Foreground="#FFD7E0EC" FontSize="10" HorizontalAlignment="Center" />
+                    <local:DialGauge Width="128" Height="78" Progress="{Binding MemoryPercent}" Accent="#FF60A5FA" />
+                    <TextBlock Text="{Binding MemoryText}" Foreground="White" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    <TextBlock Text="used" Foreground="#FF94A3B8" FontSize="9" HorizontalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Margin="2,2,6,0">
+                    <TextBlock Text="HARD DRIVE" Foreground="#FFD7E0EC" FontSize="10" HorizontalAlignment="Center" />
+                    <local:DialGauge Width="128" Height="78" Progress="{Binding DiskDialPercent}" Accent="#FFF59E0B" />
+                    <TextBlock Text="{Binding DiskText}" Foreground="White" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding DiskDetail}" Foreground="#FF94A3B8" FontSize="9" HorizontalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Margin="6,2,2,0">
+                    <TextBlock Text="NETWORK" Foreground="#FFD7E0EC" FontSize="10" HorizontalAlignment="Center" />
+                    <local:DialGauge Width="128" Height="78" Progress="{Binding NetworkDialPercent}" Accent="#FFA78BFA" />
+                    <TextBlock Text="{Binding NetworkText}" Foreground="White" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding NetworkDetail}" Foreground="#FF94A3B8" FontSize="9" HorizontalAlignment="Center" />
+                </StackPanel>
+            </UniformGrid>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -7,10 +7,10 @@
 
   <Identity Name="Jemplayer82.StatsUsageWidget"
             Publisher="CN=StatsUsageWidget"
-            Version="1.1.8.0" />
+            Version="1.1.16.0" />
 
   <Properties>
-    <DisplayName>Stats and Apple Music Widgets</DisplayName>
+    <DisplayName>Stats, Music, and System Widgets</DisplayName>
     <PublisherDisplayName>Jemplayer82</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
