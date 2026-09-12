@@ -89,5 +89,5 @@ Add-AppxPackage -Path '$installerLiteral' -ForceApplicationShutdown -ForceUpdate
 }
 
 Write-Host ''
-Write-Host 'Stats and Apple Music widgets installed.' -ForegroundColor Green
-Write-Host 'Open Widget Launcher, refresh extensions, then add “Stats AI Usage” or “Apple Music Now Playing”.'
+Write-Host 'Stats, Apple Music, and System Monitor widgets installed.' -ForegroundColor Green
+Write-Host 'Open Widget Launcher, refresh extensions, then add the widget you want to use.'
