@@ -20,11 +20,11 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn==22.0.0
 
 COPY . .
 
+RUN mkdir -p /data/codex && chmod 700 /data/codex
+
 RUN DATABASE_URL=sqlite:////tmp/stats-test.db \
     python -m unittest discover -s tests -v \
     && rm -f /tmp/stats-test.db
-
-RUN mkdir -p /data/codex && chmod 700 /data/codex
 
 EXPOSE 5000
 
