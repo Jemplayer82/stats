@@ -7,10 +7,10 @@
 
   <Identity Name="Jemplayer82.StatsUsageWidget"
             Publisher="CN=StatsUsageWidget"
-            Version="1.1.0.0" />
+            Version="1.0.4.0" />
 
   <Properties>
-    <DisplayName>Stats and Apple Music Widgets</DisplayName>
+    <DisplayName>Stats Usage Widget</DisplayName>
     <PublisherDisplayName>Jemplayer82</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -27,21 +27,21 @@
   <Applications>
     <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="Stats and Apple Music for Widget Launcher"
-        Description="AI usage meters and Apple Music playback controls"
+        DisplayName="Stats Usage for Widget Launcher"
+        Description="Codex, Claude, Ollama, and Gemini usage from Stats"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"
-                         ShortName="Stats + Music" />
+                         ShortName="Stats Usage" />
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
       <Extensions>
         <uap3:Extension Category="windows.appExtension">
           <uap3:AppExtension Name="CSS.WidgetLauncher.Extension"
                             Id="stats-usage-widget"
-                            DisplayName="Stats and Apple Music Widgets"
-                            Description="AI usage meters and Apple Music playback controls"
+                            DisplayName="Stats Usage Widget"
+                            Description="AI usage meters from your Stats server"
                             PublicFolder="Public">
             <uap3:Properties>
               <Service>widgetlauncher.css.extension</Service>
@@ -55,7 +55,6 @@
   <Capabilities>
     <Capability Name="internetClient" />
     <Capability Name="privateNetworkClientServer" />
-    <rescap:Capability Name="globalMediaControl" />
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
 </Package>

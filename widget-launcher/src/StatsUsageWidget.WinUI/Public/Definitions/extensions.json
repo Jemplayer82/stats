@@ -19,25 +19,6 @@
       "MaximumInstances": 0,
       "SupportsTransparency": true,
       "SupportsSkins": false
-    },
-    {
-      "SearchTags": [
-        "Apple Music",
-        "Music",
-        "Now Playing",
-        "Media",
-        "Controls"
-      ],
-      "DisplayName": "Apple Music Now Playing",
-      "GuidIdentifier": "329db2fb-3e56-4f75-928b-d95cf2761740",
-      "Version": "6.0.1",
-      "Description": "Album artwork, track details, and playback controls for Apple Music on Windows.",
-      "AssemblyName": "StatsUsageWidget.dll",
-      "MainClass": "StatsUsageWidget.Widgets.Music.AppleMusicExtension",
-      "ImagePath": "Assets/WidgetIcons/AppleMusicWidgetIcon.png",
-      "MaximumInstances": 1,
-      "SupportsTransparency": true,
-      "SupportsSkins": false
     }
   ]
 }
