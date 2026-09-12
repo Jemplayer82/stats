@@ -18,10 +18,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ServiceUsageGroup> Services { get; } = [];
 
     [ObservableProperty]
-    private string _statusText = "Connecting to Stats…";
-
-    [ObservableProperty]
-    private string _lastUpdated = string.Empty;
+    private string _statusText = string.Empty;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -32,7 +29,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private double _scalePercent;
 
-    public double BackgroundOpacity => Math.Clamp(1 - (TransparencyPercent / 100), 0.1, 1);
+    public double CardBackgroundOpacity => Math.Clamp(1 - (TransparencyPercent / 100), 0.1, 1);
     public double UiScale => ScalePercent / 100;
     public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
     public double WidgetBaseWidth => 720;
@@ -52,7 +49,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     partial void OnTransparencyPercentChanged(double value) =>
-        OnPropertyChanged(nameof(BackgroundOpacity));
+        OnPropertyChanged(nameof(CardBackgroundOpacity));
 
     partial void OnScalePercentChanged(double value) =>
         OnPropertyChanged(nameof(UiScale));
@@ -72,7 +69,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
         IsLoading = true;
-        StatusText = "Refreshing…";
 
         try
         {
@@ -83,7 +79,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 Services.Clear();
                 foreach (var group in groups) Services.Add(group);
                 StatusText = groups.Count == 0 ? "No services selected" : string.Empty;
-                LastUpdated = "Updated " + DateTime.Now.ToString("h:mm tt");
                 OnPropertyChanged(nameof(WidgetBaseHeight));
             });
         }
@@ -96,7 +91,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 Services.Clear();
                 StatusText = "Stats is unavailable · " + ex.Message;
-                LastUpdated = "Check the address in widget settings";
                 OnPropertyChanged(nameof(WidgetBaseHeight));
             });
         }

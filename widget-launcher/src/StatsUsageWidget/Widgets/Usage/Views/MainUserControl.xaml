@@ -10,14 +10,10 @@
     </UserControl.Resources>
 
     <Border Width="{Binding WidgetBaseWidth}" Height="{Binding WidgetBaseHeight}"
-            BorderBrush="#FF273244" BorderThickness="1"
-            CornerRadius="12" Padding="8">
+            BorderThickness="0" Background="Transparent" Padding="8">
         <Border.LayoutTransform>
             <ScaleTransform ScaleX="{Binding UiScale}" ScaleY="{Binding UiScale}" />
         </Border.LayoutTransform>
-        <Border.Background>
-            <SolidColorBrush Color="#FF0B1018" Opacity="{Binding BackgroundOpacity}" />
-        </Border.Background>
         <Grid>
             <StackPanel>
                 <TextBlock Text="{Binding StatusText}" Style="{StaticResource QuietText}"
@@ -31,11 +27,11 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border BorderBrush="#FF263244" BorderThickness="1"
-                                    CornerRadius="8" Padding="6" Margin="2">
+                            <Border BorderThickness="0" CornerRadius="8"
+                                    Padding="6" Margin="2">
                                 <Border.Background>
                                     <SolidColorBrush Color="#FF121925"
-                                        Opacity="{Binding DataContext.BackgroundOpacity, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                        Opacity="{Binding DataContext.CardBackgroundOpacity, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                 </Border.Background>
                                 <StackPanel>
                                     <Grid Margin="0,0,0,2">

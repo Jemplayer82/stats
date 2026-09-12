@@ -91,7 +91,7 @@ public sealed class StatsUsageClient
 
         return CreateGroup(
             service.ServiceId,
-            metrics.Count == 0 ? "No usage was reported" : "live",
+            metrics.Count == 0 ? "No usage was reported" : string.Empty,
             metrics);
     }
 

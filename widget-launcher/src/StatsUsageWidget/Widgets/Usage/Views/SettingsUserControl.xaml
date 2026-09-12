@@ -49,7 +49,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="Widget transparency" FontWeight="SemiBold" />
+                <TextBlock Text="LLM card transparency" FontWeight="SemiBold" />
                 <TextBlock Grid.Column="1"
                            Text="{Binding TempTransparencyPercent, StringFormat={}{0}%}"
                            Foreground="#FF94A3B8" />
@@ -58,7 +58,7 @@
                     IsSnapToTickEnabled="True"
                     Value="{Binding TempTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     Margin="0,-10,0,16"
-                    ToolTip="Higher values make the widget background more transparent" />
+                    ToolTip="Higher values make each LLM card background more transparent" />
 
             <Grid Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
